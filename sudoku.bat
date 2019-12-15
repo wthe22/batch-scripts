@@ -1,46 +1,75 @@
-@goto Module.detect
+@rem UTF-8-BOM guard > nul 2> nul
+@goto module.entry_point
 
-rem ======================================== Script Meta-data ========================================
+rem ======================================== Metadata ========================================
 
-:__setup__
-set "%~1NAME=sudoku"
-set "%~1DESCRIPTION=Sudoku"
-set "%~1VERSION=3.2-b"
-set "%~1RELEASE=03/25/2019"   :: MM/DD/YYYY
-set "%~1URL=https://winscr.blogspot.com/2013/08/sudoku.html"
-set "%~1DOWNLOAD_URL=https://gist.githubusercontent.com/wthe22/5eb8acec50840b7a29b197112e4f9dea/raw"
+:metadata   [prefix]
+set "%~1name=sudoku"
+set "%~1version=3.2"
+set "%~1author=wthe22"
+set "%~1license=The MIT License"
+set "%~1description=Sudoku"
+set "%~1release_date=07/20/2019"   :: MM/DD/YYYY
+set "%~1url=https://winscr.blogspot.com/2013/08/sudoku.html"
+set "%~1download_url=https://gist.githubusercontent.com/wthe22/5eb8acec50840b7a29b197112e4f9dea/raw"
 exit /b 0
 
 
-:__about__
+:about
 setlocal EnableDelayedExpansion
-call :__setup__
+call :metadata
 if not defined preferred.style set "preferred.style=lines_n_pipes"
-title !NAME! !VERSION!
-cls
 call :Style_!preferred.style!.splash_screen
 echo=
-echo Updated on !RELEASE!
+echo Updated on !release_date!
 echo=
-echo Feel free to use, share, or modify this script :)
+echo Feel free to use, share, or modify this script for your projects :)
 echo Visit http://winscr.blogspot.com/ for more scripts^^!
 echo=
 echo=
-echo Copyright (C) 2019 by wthe22
-echo Licensed under The MIT License
-echo=
-pause > nul
+echo Copyright (C) 2019 by !author!
+echo Licensed under !license!
 endlocal
 exit /b 0
 
-rem ======================================== Settings ========================================
+rem ======================================== License ========================================
 
-:__settings__
+:license
+echo Copyright 2019 wthe22
+echo=
+echo Permission is hereby granted, free of charge, to any person obtaining a 
+echo copy of this software and associated documentation files (the "Software"), 
+echo to deal in the Software without restriction, including without limitation 
+echo the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+echo and/or sell copies of the Software, and to permit persons to whom the 
+echo Software is furnished to do so, subject to the following conditions:
+echo=
+echo The above copyright notice and this permission notice shall be included in 
+echo all copies or substantial portions of the Software.
+echo=
+echo THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
+echo OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+echo FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+echo AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+echo LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+echo FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+echo DEALINGS IN THE SOFTWARE.
+exit /b 0
+
+rem ======================================== Configurations ========================================
+
+:config
+call :config.default
+call :config.preferences
+exit /b 0
+
+
+:config.default
 set "data_path=%~dp0\Data\Sudoku\"
 set "temp_path=!temp!\BatchScript\Sudoku\"
 
-set "default_con_width=80"
-set "default_con_height=25"
+set "default_console_width=80"
+set "default_console_height=25"
 
 set "solution_count_limit=5"
 
@@ -55,14 +84,59 @@ set "highlight_color=4E"    Highlighted cells in solver
 set "candidate_color=02"    Candidate for answer in solver
 set     "error_color=0C"    Error in solvings
 
-rem Uncomment this if you have display problems with boxchar style
+rem Uncomment this if you have display problems with box character style
 rem set "default_codepage=437"
+
+
+rem Macros to call external module (use absolute paths)
+set "batchlib="
+exit /b 0
+
+
+:config.preferences
+rem Define your preferences or config modifications here
+
+rem Macros to call external module (use absolute paths)
+rem set batchlib="%~dp0batchlib.bat" --module=lib 
 exit /b 0
 
 rem ======================================== Changelog ========================================
 
-:__changelog__
-echo    3.2-b (2019-03-25)
+:changelog
+for /f "usebackq tokens=1-2* delims=." %%a in ("%~f0") do (
+    if /i "%%a.%%b" == ":changelog.text" (
+        echo !SOFTWARE.name! %%c
+        call :changelog.text.%%c
+        echo=
+    )
+)
+exit /b 0
+
+
+:changelog.latest
+for /f "usebackq tokens=1-2* delims=." %%a in ("%~f0") do (
+    if /i "%%a.%%b" == ":changelog.text" (
+        echo !SOFTWARE.name! %%c
+        call :changelog.text.%%c
+        exit /b 0
+    )
+)
+exit /b 0
+
+
+:changelog.text.3.2 (2019-07-20)
+echo    Internal
+echo    - Updated library and framework codes (codes from batchlib 2.0-b.4)
+echo    - Changed 'GOTO' to 'CALL' at main menu for more predictable program flow
+echo=
+echo    Documentation
+echo    - Updated documentation to comply with batchlib 2.0-b.3
+echo=
+echo    Backward Incompatibilities
+echo    - Version 3.2-b cannot update to this version due to incompatible framework version
+exit /b 0
+
+:changelog.text.3.2-b (2019-03-25)
 echo    Code Refactoring Update
 echo    - Fixed a minor error in labeling of built-in sudoku
 echo    - Fixed clear line error if script is set to read-only
@@ -75,14 +149,11 @@ echo    - Integrated framework from Library
 echo    - Added ability to check for updates and upgrade script
 exit /b 0
 
-
-:__changelog__.full
-call :__changelog__
-echo=
-echo    3.1.5 (2018-02-08)
+:changelog.text.3.1.5 (2018-02-08)
 echo    - Improved script documentation
-echo=
-echo    3.1.4 (2017-08-17)
+exit /b 0
+
+:changelog.text.3.1.4 (2017-08-17)
 echo    Only bug-fixes
 echo    - Fixed regression (from code readability improvements in 3.1.3):
 echo        - imported sudoku cannot be used or saved to file
@@ -91,16 +162,18 @@ echo        - sudoku default name not saved to file
 echo    - Fixed bug where sudoku with no name cannot be selected
 echo    - Fixed clear line bug again (the fix in 3.1.2 clear line only works in windows 10!)
 echo    - Fixed bug when viewing sudoku arrays
-echo=
-echo    3.1.3 (2017-08-09)
+exit /b 0
+
+:changelog.text.3.1.3 (2017-08-09)
 echo    - Fixed regression of candidate color replaced by solving color when using solver
 echo    - Fixed regression of import sudoku answer
 echo    - Reworked import sudoku answer
 echo    - Reworked select size menu
 echo    - Improved some code readability
 echo    - Re-picked colors to improve contrast
-echo=
-echo    3.1.2 (2017-07-17)
+exit /b 0
+
+:changelog.text.3.1.2 (2017-07-17)
 echo    - Fixed clear line bug on windows 10
 echo    - Fixed solving steps
 echo    - Added option to show candidates when solving
@@ -108,12 +181,14 @@ echo    - Added option to generate custom sudoku
 echo    - Reworked difficulty levels for generating sudoku
 echo    - Added more built-in sudoku
 echo    - Bruteforce sudoku slightly faster
-echo=
-echo    3.1 (2016-08-19)
+exit /b 0
+
+:changelog.text.3.1 (2016-08-19)
 echo    - Refactor several labels and codes
 echo    - Reworked several menu
-echo=
-echo    3.0 (2016-08-19)
+exit /b 0
+
+:changelog.text.3.0 (2016-08-19)
 echo    - Color GUI but it's quite slow because... it is batch script :)
 echo    - Fully support 4x4 to 16x16 sudoku size
 echo    - Major rework in code
@@ -121,70 +196,70 @@ echo    - 2 Grid styles (ASCII art style and normal text style)
 echo    - Improved generate sudoku speed (2-4x faster)
 echo    - Added support for windows 10
 echo    - Added built-in sudoku packs
-echo=
-echo    2.1 (2015-10-10)
+exit /b 0
+
+:changelog.text.2.1 (2015-10-10)
 echo    - Added support for 4x4 and 6x6 sudoku (with minor display problems)
 echo    - Few menu redesigns
 echo    - Improve bruteforce speed (2-3x faster)
-echo=
-echo    2.0 (2014)
+exit /b 0
+
+:changelog.text.2.0 (2014)
 echo    - Merged all menus (Play, Import, View, Solve) to one file
 echo    - Major rework in code
 echo    - Redesigned some menus
 echo    - Bruteforce solver uses bruteforce and solve method (took less than 5mins to solve Arto Inkala)
 echo    - Added solution count feature
 echo    - Can now generate Sudoku (easy and random difficulty only)
-echo=
-echo    1.0 (2013-08-23)
+exit /b 0
+
+:changelog.text.1.0 (2013-08-23)
 echo    - Initial version
 echo    - Each menu is written in seperate script
 echo    - Bruteforce solver uses pure bruteforce method (took 1h 30min to solve Arto Inkala)
 exit /b 0
 
-rem ======================================== Debug function ========================================
+rem ======================================== Debug functions ========================================
 
-:__error__.assertion
+:exception.raise
 @echo=
 @echo=
-@ < nul set /p "=Assertion error: "
-@for %%t in (%*) do @echo %%~t
+@for %%t in (%*) do @ 1>&2 echo %%~t
 @echo=
 @echo Press any key to exit...
 @pause > nul
 @exit
 
-rem ======================================== Library module ========================================
+rem ======================================== Main ========================================
 
-:__module__.lib
+:__main__
+@call :scripts.main %*
+@exit %errorlevel%
+
+rem ======================================== Scripts/Entry points  ========================================
+:scripts.__init__
+@exit /b 0
+
+rem ================================ library script ================================
+
+:scripts.lib
 @call :%*
 @exit /b
 
-rem ======================================== Main module ========================================
+rem ================================ main script ================================
 
-:__module__.__main__.reload
-endlocal
-
-:__module__.__main__
+:scripts.main
 @set "__name__=__main__"
 @echo off
-prompt $g
+prompt $$ 
 setlocal EnableDelayedExpansion EnableExtensions
-call :__setup__ SOFTWARE_
-title !SOFTWARE_DESCRIPTION! !SOFTWARE_VERSION!
+call :metadata SOFTWARE.
+title !SOFTWARE.description! !SOFTWARE.version!
 cls
 echo Loading script...
 
-@call :check_eol --check-exist && @(
-    call :check_eol || @(
-        echo Converting EOL...
-        type "%~f0" | more /t4 > "%~f0.tmp" && (
-            move "%~f0.tmp" "%~f0" > nul && goto __module__.__main__.reload
-        )
-        echo warn: Convert EOL failed
-    )
-) || @echo warn: Cannot check EOL
-
-call :__settings__
+for %%n in (1 2) do call :fix_eol.alt%%n scripts.main.reload
+call :config
 
 for %%p in (
     data_path temp_path
@@ -201,10 +276,10 @@ rem sideText_minHeight @ GUI Builder
 if defined default_codepage chcp !default_codepage!
 color !default_color!
 call :Style.load
-call :Display.change_size !default_con_width! !default_con_height!
+call :Display.change_size !default_console_width! !default_console_height!
 
 rem Setup splash screen
-call :capchar DQ
+call %batchlib%:capchar DQ
 cls
 call :Style_!preferred.style!.splash_screen
 
@@ -217,8 +292,8 @@ for %%p in (
 
 set "ALPHABET=_ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 set "SYMBOL=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-set "con_width=!default_con_width!"
-set "con_height=!default_con_height!"
+set "con_width=!default_console_width!"
+set "con_height=!default_console_height!"
 set "applied.style="
 set "applied.size="
 
@@ -227,19 +302,27 @@ call :Block_size.init_list 4 4
 call :Block_size.setup 0x0
 call :State.reset
 call :Difficulty.load
-call :capchar *
-call :watchvar --initialize > nul 2> nul
-goto main_menu
+call %batchlib%:capchar *
+call %batchlib%:watchvar --initialize > nul 2> nul
+call :main_menu
+rd /s /q "!temp_path!" > nul 2> nul
+exit /b
 
-rem ======================================== Main Menu ========================================
-:_.MAIN_MENU._     Main menu
 
+:scripts.main.reload
+endlocal
+goto scripts.main
+
+rem ======================================== User Interfaces ========================================
+:ui.__init__     User Interfaces
+
+rem ================================ Main Menu ================================
 
 :main_menu
-call :Display.change_size !default_con_width! !default_con_height!
+call :Display.change_size !default_console_width! !default_console_height!
 :main_menu.loop
 set "user_input="
-title !SOFTWARE_DESCRIPTION! !SOFTWARE_VERSION!
+title !SOFTWARE.DESCRIPTION! !SOFTWARE.VERSION!
 cls
 echo 1. Play sudoku
 echo 2. Import sudoku
@@ -253,20 +336,19 @@ echo 0. Exit
 echo=
 echo What do you want to do?
 set /p "user_input="
-if "!user_input!" == "0" goto cleanup
+if "!user_input!" == "0" exit /b 0
 if "!user_input!" == "1" call :Play
 if "!user_input!" == "2" call :Import
 if "!user_input!" == "3" call :View
-if "!user_input!" == "4" goto Solver.setup
-if "!user_input!" == "5" goto Generator.setup
-if /i "!user_input!" == "A" call :__about__
+if "!user_input!" == "4" call :Solver
+if "!user_input!" == "5" call :Generator
+if /i "!user_input!" == "A" (
+    cls
+    call :about
+    pause
+)
 if /i "!user_input!" == "S" goto Settings.menu
 goto main_menu.loop
-
-
-:cleanup
-rd /s /q "!temp_path!" > nul 2> nul
-exit
 
 
 :Settings.menu
@@ -287,7 +369,7 @@ if "!user_input!" == "1" call :Settings.Style.menu
 if "!user_input!" == "2" call :Settings.toggle_color
 if /i "!user_input!" == "D" call :Settings.debug
 if /i "!user_input!" == "U" goto Settings.update_script
-if /i "!user_input!" == "R" goto __module__.__main__.reload
+if /i "!user_input!" == "R" goto scripts.main.reload
 goto Settings.menu
 
 
@@ -327,7 +409,7 @@ echo !vB!!hG!!hG!!hG!!cLine!!hG!!hG!!hG!!vB!!hG!!cLine!!hG!!vB!
 echo !dlCorner!!hB!!hB!!hB!!hB!!hB!!hB!!hB!!dEdge!!hB!!hB!!hB!!drCorner!
 echo=
 endlocal
-call :Input_yesno -t -d user_input "Confirm? Y/N? " || goto Settings.Style.menu
+call :Input.yesno user_input -d "Confirm? Y/N? " -y="true" -n="" || goto Settings.Style.menu
 echo=
 set "preferred.style=!selected.style!"
 echo Grid Style successfully changed
@@ -341,9 +423,9 @@ echo Debug Informations
 echo=
 echo Temp path: !temp_path!
 echo=
-call :wait.calibrate
+call %batchlib%:wait.calibrate
 echo=
-call :watchvar --list
+call %batchlib%:watchvar --list
 echo=
 pause
 goto :EOF
@@ -361,7 +443,7 @@ cls
 echo This process requires internet connection
 echo=
 echo=
-call :Module.updater check "%~f0" || (
+call :module.updater check "%~f0" || (
     pause
     goto Settings.menu
 )
@@ -370,13 +452,12 @@ echo Note:
 echo - Updating will REPLACE current script with the newer version
 echo - Saved puzzle, answers, and solving won't be deleted
 echo=
-call :Input_yesno user_input "Update now? Y/N? " || goto Settings.menu
-call :Module.updater upgrade "%~f0"
+call :Input.yesno user_input -d "Update now? Y/N? " || goto Settings.menu
+call :module.updater upgrade "%~f0"
 goto Settings.menu
 
-
-rem ======================================== Play Sudoku ========================================
-:_.PLAY._     Play Sudoku
+rem ================================ Play Sudoku ================================
+:ui.play.__init__     Play Sudoku
 
 
 :Play
@@ -470,8 +551,8 @@ goto :EOF
 
 
 :Play.solved
-call :difftime time_taken !time! !start_time!
-call :ftime time_taken !time_taken!
+call %batchlib%:difftime time_taken !time! !start_time!
+call %batchlib%:ftime time_taken !time_taken!
 call :Matrix.create selected.puzzle selected.puzzle_array 1
 call :Side_text.add --clear ^
     --info:selected.puzzle " " ^
@@ -500,8 +581,8 @@ if not defined _solved_sudoku (
 call :save2file --solvings
 goto :EOF
 
-rem ======================================== Import Sudoku ========================================
-:_.IMPORT._     Import Sudoku
+rem ================================ Import Sudoku ================================
+:ui.import.__init__     Import Sudoku
 
 
 :Import
@@ -667,8 +748,8 @@ for %%v in (
 call :save2file --puzzle
 goto :EOF
 
-rem ======================================== View Sudoku ========================================
-:_.VIEWER._     View Sudoku
+rem ================================ View Sudoku ================================
+:ui.viewer.__init__     View Sudoku
 
 
 :View
@@ -739,12 +820,13 @@ if defined %~1.solvings_array (
 pause
 exit /b 0
 
-rem ======================================== Generate Sudoku ========================================
-:_.GENERATOR._     Generate Sudoku (Menu Only)
+rem ================================ Generate Sudoku ================================
+:ui.generator.__init__     Generate Sudoku
 
 
+:Generator
 :Generator.setup
-call :select_size || goto main_menu
+call :select_size || goto :EOF
 
 call :Block_size.setup !selected.size!
 
@@ -818,10 +900,10 @@ set "minTime=???"
 set "maxTime=???"
 for /f "tokens=1,2 delims= " %%a in ("!estTime!") do (
     set /a "minTime=%%a * 1000 / !loopSpeed!"
-    call :ftime minTime !minTime!
+    call %batchlib%:ftime minTime !minTime!
     
     set /a "maxTime=%%b * 1000 / !loopSpeed!"
-    call :ftime maxTime !maxTime!
+    call %batchlib%:ftime maxTime !maxTime!
 )
 
 set "selected.name=!difficultyName!"
@@ -878,8 +960,8 @@ for /l %%n in (1,1,!_count!) do (
     )
 )
 set "_count="
-call :difftime time_taken !time! !start_time2!
-call :ftime time_taken !time_taken!
+call %batchlib%:difftime time_taken !time! !start_time2!
+call %batchlib%:ftime time_taken !time_taken!
 echo !CL![!time!] Generate answer done in !time_taken! with !search_count! loops
 call :Matrix.to_array selected.puzzle last_used.answer_array
 
@@ -892,7 +974,7 @@ set "currentGivens=!total_cells!"
 set "totalBruteforceCount=0"
 call :Cell.random selected.puzzle --filled
 for %%c in (!cell_list!) do (
-    title Sudoku !SOFTWARE_VERSION! - Generating puzzle... #!progressCount!/!total_cells! ^| Givens: !currentGivens!/!targetGivens!
+    title Sudoku !SOFTWARE.VERSION! - Generating puzzle... #!progressCount!/!total_cells! ^| Givens: !currentGivens!/!targetGivens!
     
     call :Matrix.copy selected.puzzle selected.solvings
     set "selected.solvings_%%c= "
@@ -910,11 +992,11 @@ for %%c in (!cell_list!) do (
     if "!selected.puzzle_%%c!" == " " set /a "currentGivens-=1"
     if "!currentGivens!" == "!targetGivens!" goto Generator.generateDone
 )
-title Sudoku !SOFTWARE_VERSION!
+title Sudoku !SOFTWARE.VERSION!
 
 :Generator.generateDone
-call :difftime time_taken !time! !start_time2!
-call :ftime time_taken !time_taken!
+call %batchlib%:difftime time_taken !time! !start_time2!
+call %batchlib%:ftime time_taken !time_taken!
 if /i "!method_used!" == "BF" (
     echo !CL![!time!] Generate puzzle done in !time_taken! with !totalBruteforceCount! loops
 ) else echo !CL![!time!] Generate puzzle done in !time_taken!
@@ -928,8 +1010,8 @@ call :Matrix.delete candidate_list
 call :Matrix.delete selected.solvings
 
 echo [!time!] Done
-call :difftime time_taken !time! !start_time!
-call :ftime time_taken !time_taken!
+call %batchlib%:difftime time_taken !time! !start_time!
+call %batchlib%:ftime time_taken !time_taken!
 echo=
 echo Total time taken : !time_taken!
 echo=
@@ -944,7 +1026,7 @@ call :Matrix.delete selected.puzzle
 call :Matrix.delete applied.color
 echo Total time taken : !timeTaken!
 call :save2file --puzzle
-goto main_menu
+goto :EOF
 
 
 :Generator.badSeed
@@ -957,8 +1039,8 @@ goto Generator.promptGenerate
 call :save2file --puzzle --quiet
 if not "!generateCount!" == "!generateTotal!" goto Generator.startGenerate
 
-call :difftime time_taken !time! !start_time!
-call :ftime time_taken !time_taken!
+call %batchlib%:difftime time_taken !time! !start_time!
+call %batchlib%:ftime time_taken !time_taken!
 
 call :Matrix.delete selected.puzzle
 
@@ -967,15 +1049,16 @@ echo=
 echo Total time taken : !time_taken!
 echo=
 pause
-goto main_menu
+goto :EOF
 
-rem ======================================== Solve Sudoku ========================================
-:_.SOLVER._     Solve Sudoku (Menu Only)
+rem ================================ Solve Sudoku ================================
+:ui.solver.__init__     Solve Sudoku
 
 
+:Solver
 :Solver.setup
 call :select_sudoku --validate
-if not defined selected.puzzle_array goto main_menu
+if not defined selected.puzzle_array goto :EOF
 
 rem Load puzzle, color and side text
 call :Display.setup
@@ -994,14 +1077,14 @@ if defined selected.solvings_array (
     cls
     call :Display.sudoku selected.solvings
     echo Solvings data found
-    call :Input_yesno -t -d use_saves "Do you want to load this solvings? Y/N? " || (
+    call :Input.yesno use_saves -d "Do you want to load this solvings? Y/N? " -y="true" -n="" || (
         rem Restore puzzle and side text if user entered 'N'
         call :Matrix.create selected.solvings selected.puzzle_array 1
         call :Side_text.add --clear --info:selected.solvings
     )
 )
-call :Input_yesno -t -d user_input "Show solvings steps? Y/N? " || goto Solver.quickSolve
-call :Input_yesno -t -d show_candidates "Show candidates? Y/N? "
+call :Input.yesno user_input -d "Show solvings steps? Y/N? " -y="true" -n="" || goto Solver.quickSolve
+call :Input.yesno show_candidates -d "Show candidates? Y/N? " -y="true" -n=""
 goto Solver.showSteps_setup
 
 
@@ -1016,8 +1099,8 @@ call :Solve selected.solvings
 if /i "!is_valid!" == "false" goto Solver.invalidSudoku
 if not "!empty_cells!" == "0" goto Solver.too_hard
 
-call :difftime time_taken !time! !start_time!
-call :ftime time_taken !time_taken!
+call %batchlib%:difftime time_taken !time! !start_time!
+call %batchlib%:ftime time_taken !time_taken!
 call :Matrix.to_array selected.solvings last_used.answer_array
 
 cls
@@ -1133,8 +1216,8 @@ cls
 call :Display.sudoku selected.solvings
 echo This sudoku is either too hard or it is invalid.
 
-call :Input_yesno -t -d user_input "Use bruteforce? Y/N? " || goto Solver.quit
-call :Input_yesno -t -d count_solutions "Count number of solutions? Y/N? "
+call :Input.yesno user_input -d "Use bruteforce? Y/N? " -y="true" -n="" || goto Solver.quit
+call :Input.yesno count_solutions -d "Count number of solutions? Y/N? " -y="true" -n=""
 
 call :Matrix.create selected.solvings selected.puzzle_array 1
 cls
@@ -1147,8 +1230,8 @@ set "start_time=!time!"
 if defined count_solutions (
     call :Bruteforce selected.solvings --solution-count
 ) else call :Bruteforce selected.solvings
-call :difftime time_taken !time! !start_time!
-call :ftime time_taken !time_taken!
+call %batchlib%:difftime time_taken !time! !start_time!
+call %batchlib%:ftime time_taken !time_taken!
 
 set "last_used.answer_array=!solution1!"
 
@@ -1173,10 +1256,10 @@ call :Matrix.delete applied.color
 if defined last_used.answer_array (
     call :save2file --puzzle
 ) else if defined last_used.solvings_array call :save2file --puzzle
-goto main_menu
+goto :EOF
 
-rem ======================================== Select Sudoku ========================================
-:_.SELECT._     Select sudoku from file / last used
+rem ================================ Select Sudoku ================================
+:ui.select.__init__     Select sudoku from file / last used
 
 
 :select_sudoku [--validate]
@@ -1207,10 +1290,10 @@ if "!selected.file!" == "0" (
 )
 if defined last_used.puzzle_array if /i "!selected.file!" == "L" goto select_sudoku.last_used
 if /i "!selected.file!" == "T" set "selected.file=%~f0"
-call :check_path --exist --file selected.file && (
+call %batchlib%:check_path --exist --file selected.file && (
     echo=
     echo Checking file...
-    call :strip_dquotes selected.file
+    call %batchlib%:strip_dquotes selected.file
     call :Sudoku_file.read "!selected.file!"
     if not "!Category.item_count!" == "0" goto select_sudoku.category
     echo No sudoku data found
@@ -1304,11 +1387,11 @@ if "!selected.file!" == "0" set "selected.file="
 popd
 goto :EOF
 
-rem ======================================== Select Size ========================================
+rem ================================ Select Size ================================
 
 :select_size
 set "user_input="
-call :Display.change_size !default_con_width! !default_con_height!
+call :Display.change_size !default_console_width! !default_console_height!
 cls
 call :Block_size.get_item list
 echo=
@@ -1323,7 +1406,7 @@ call :Block_size.get_item "!user_input!" && exit /b 0
 goto select_size
 
 rem ======================================== Save to File  ========================================
-:_.SAVE_TO_FILE._     Save Sudoku to file
+:ui.save_to_file.__init__     Save Sudoku to file
 
 
 :save2file   <--puzzle | --solvings> [--quiet]
@@ -1337,14 +1420,14 @@ for %%p in (%*) do (
     if /i "%%p" == "--solvings" set "writePath=!save_path!"
     if /i "%%p" == "--quiet" set "promptUser=false"
 )
-if not defined writePath call :__error__.assertion "save2file: Save path is not defined"
+if not defined writePath call :exception.raise "save2file: Assertion Error:" "Save path is not defined"
 pushd "!writePath!"
 if /i "!promptUser!" == "true" goto save2file.prompt
 goto save2file.noPrompt
 
 
 :save2file.prompt
-call :Input_yesno -t -d user_input "Save to file? Y/N? " || goto save2file.cleanup
+call :Input.yesno user_input -d "Save to file? Y/N? " -y="true" -n="" || goto save2file.cleanup
 
 if not defined last_used.file set "last_used.file=Unknown"
 :save2file.fileIn
@@ -1361,7 +1444,7 @@ echo=
 echo Input sudoku file name :
 set /p "selected.file="
 if /i "!selected.file!" == "0" goto save2file.cleanup
-call :strip_dquotes selected.file
+call %batchlib%:strip_dquotes selected.file
 if not exist "!selected.file!" goto save2file.nameIn
 echo=
 echo File already exist. Sudoku will be added to that file
@@ -1434,9 +1517,11 @@ set "promptUser="
 popd
 goto :EOF
 
-rem ======================================== Solve Sudoku ========================================
-:_.SOLVE._     Solve Sudoku (not bruteforce)
+rem ======================================== Utilities ========================================
+:utils.__init__     For "objects"
+exit /b 0
 
+rem ================================ Solve Sudoku ================================
 
 :Solve   matix_name  [methods]  [--once]
 set "usedMethods=all"
@@ -1540,8 +1625,6 @@ goto :EOF
 
 
 rem ======================================== Bruteforce Sudoku ========================================
-:_.BRUTEFORCE._     Anything related to bruteforce
-
 
 :generate_answer   matix_name
 rem Return
@@ -1733,9 +1816,6 @@ for /l %%i in (1,1,!grid_size!) do for /l %%j in (1,1,!grid_size!) do (
 )
 goto :EOF
 
-rem ======================================== Functions ========================================
-:_.FUNCTIONS._     Functions
-
 rem ======================================== Color ========================================
 
 :Color.set   [--clear] [--<color_type>] --pop [cell [...]]
@@ -1915,7 +1995,7 @@ set "_read="
 set "_current_category="
 if "%~2,%~3" == "," exit /b 0
 if defined selected.puzzle_array exit /b 0
-call :__error__.assertion "Sudoku_file.read" ^
+call :exception.raise "Sudoku_file.read: Assertion Error:" ^
     "Sudoku category %~2 #%~3 is not found" ^
     "Maybe sudoku file is modified by another program"
 exit /b 1
@@ -2059,12 +2139,12 @@ rem ======================================== Display ===========================
 :Display.evaluate_color
 set "Color.list=default puzzle solvings highlight candidate error"
 set "ansi_esc_seq_support="
-call :get_os _version
+call %batchlib%:get_os _version
 for /f "tokens=1 delims=." %%a in ("!_version!") do (
     if %%a GEQ 10 set "ansi_esc_seq_support=true"
 )
 for %%t in (!Color.list!) do if defined ansi_esc_seq_support (
-    call :color2seq Color_%%t "!%%t_color!"
+    call %batchlib%:color2seq Color_%%t "!%%t_color!"
 ) else set "Color_%%t=!%%t_color!"
 exit /b 0
 
@@ -2119,8 +2199,8 @@ set "Grid_top=!_left_margin!!ulCorner!!_border!!Grid_top!!urCorner!"
 set "Grid_border=!_left_margin!!lEdge!!_border!!Grid_border!!rEdge!"
 set "Grid_bottom=!_left_margin!!dlCorner!!_border!!Grid_bottom!!drCorner!"
 set "Grid_line=!_left_margin!!vBorder!!_line!!Grid_line!!vBorder!"
-call :strlen vBorder_len vBorder
-call :strlen vLine_len vLine
+call %batchlib%:strlen vBorder_len vBorder
+call %batchlib%:strlen vLine_len vLine
 set "Grid_numbers=!_left_margin!"
 for /l %%n in (1,1,!vBorder_len!) do set "Grid_numbers=!Grid_numbers! "
 for /l %%n in (1,1,!grid_size!) do (
@@ -2134,7 +2214,7 @@ for /l %%n in (1,1,!grid_size!) do (
 )
 
 rem Calculate grid size and screen size
-call :strlen GUI_width Grid_numbers
+call %batchlib%:strlen GUI_width Grid_numbers
 set /a "GUI_height= 2 + 2 * !grid_size!"
 set /a "con_width=!GUI_width! + !Side_text.width! + 3"
 set /a "con_height=!GUI_height! + !bottomText_lines!"
@@ -2274,7 +2354,7 @@ if "!applied.con_width!,!applied.con_height!" == "%~1,%~2" exit /b 0
 mode %~1,%~2
 set "applied.con_width=%~1"
 set "applied.con_height=%~2"
-call :setup_clearline
+call %batchlib%:setup_clearline
 exit /b 0
 
 rem ======================================== Action ========================================
@@ -2518,7 +2598,10 @@ if /i not "%1" == "list" if not defined selected.style exit /b 1
 exit /b 0
 
 rem ======================================== Batch Script Library ========================================
-:_.BATCHLIB._     Batch Script Library 2.0-b.1
+:lib.__init__
+rem Sources:
+rem - batchlib 2.0-b.3
+exit /b 0
 
 
 :rand   return_var  minimum  maximum
@@ -2589,26 +2672,21 @@ for /f "tokens=4 delims=. " %%v in ('ver') do (
 exit /b 0
 
 
-:check_path   variable_name [-e | -n] [-d | -f]
+:check_path   variable_name  [-e|-n]  [-d|-f]
 setlocal EnableDelayedExpansion EnableExtensions
 for %%v in (_require_attrib  _require_exist) do set "%%v="
-set "_argc=1"
-for %%a in (%*) do (
-    set "_set_cmd="
-    for %%f in ("-e" "--exist") do      if /i "%%a" == "%%~f" set "_set_cmd=_require_exist=true"
-    for %%f in ("-n" "--not-exist") do  if /i "%%a" == "%%~f" set "_set_cmd=_require_exist=false"
-    for %%f in ("-f" "--file") do       if /i "%%a" == "%%~f" set "_set_cmd=_require_attrib=-"
-    for %%f in ("-d" "--directory") do  if /i "%%a" == "%%~f" set "_set_cmd=_require_attrib=d"
-    if defined _set_cmd (
-        set "!_set_cmd!"
-        shift /!_argc!
-    ) else set /a "_argc+=1"
-)
+set parse_args.args= ^
+    "-e --exist     :flag:_require_exist=true" ^
+    "-n --not-exist :flag:_require_exist=false" ^
+    "-f --file      :flag:_require_attrib=-" ^
+    "-d --directory :flag:_require_attrib=d"
+call :parse_args %*
 set "_path=!%~1!"
 if "!_path:~0,1!!_path:~-1,1!" == ^"^"^"^" set "_path=!_path:~1,-1!"
 if "!_path:~-1,1!" == ":" set "_path=!_path!\"
 for /f tokens^=1-2*^ delims^=?^"^<^>^| %%a in ("_?_!_path!_") do if not "%%c" == "" 1>&2 echo Invalid path & exit /b 1
 for /f "tokens=1-2* delims=*" %%a in ("_*_!_path!_") do if not "%%c" == "" 1>&2 echo Wildcards are not allowed & exit /b 1
+rem (!) Can be improved
 if "!_path:~1,1!" == ":" (
     if not "!_path::=!" == "!_path:~0,1!!_path:~2!" 1>&2 echo Invalid path & exit /b 1
 ) else if not "!_path::=!" == "!_path!" 1>&2 echo Invalid path & exit /b 1
@@ -2636,7 +2714,7 @@ if "!file_exist!" == "true" if defined _require_attrib if not "!_attrib!" == "!_
     )
     exit /b 1
 )
-for /f "tokens=*" %%c in ("!_path!") do (
+for /f "tokens=* delims=" %%c in ("!_path!") do (
     endlocal
     set "%~1=%%c"
 )
@@ -2859,11 +2937,37 @@ set "_hex=!_hex:~0,-1!"
 exit /b
 
 
-:check_eol
-for %%f in ("-c" "--check-exist") do if /i "%1" == "%%~f" exit /b 0
-@call :check_eol.test 2> nul && exit /b 0 || exit /b 1
+:fix_eol   goto_label
+:fix_eol.alt1
+rem Space
+:fix_eol.alt2
+rem Fix EOL (LF to CRLF)
+@for %%n in (1 2) do call :check_win_eol.alt%%n --check-exist 2> nul && @(
+    call :check_win_eol.alt%%n || @(
+        echo Converting EOL...
+        type "%~f0" | more /t4 > "%~f0.tmp" && (
+            move "%~f0.tmp" "%~f0" > nul && (
+                goto 2> nul
+                goto %1
+            )
+        )
+        echo warning: Convert EOL failed
+        exit /b 1
+    )
+    exit /b 0
+)
+exit /b 1
+
+
+:check_win_eol   [--check-exist]
+rem The label below is an alternative label if the main label cannot be found
+:check_win_eol.alt1
+rem THIS IS REQUIRED
+:check_win_eol.alt2
+for %%f in (-c --check-exist) do if /i "%1" == "%%f" exit /b 0
+@call :check_win_eol.test 2> nul && exit /b 0 || exit /b 1
 rem  1  DO NOT REMOVE THIS COMMENT SECTION, IT IS IMPORTANT FOR THIS FUNCTION TO WORK CORRECTLY                               #
-rem  2  DO NOT MODIFY THIS COMMENT SECTION IF YOU DON'T KNOW WHAT YOU ARE DOING, THIS IS DESIGNED CAREFULLY                   #
+rem  2  DO NOT MODIFY THIS COMMENT SECTION IF YOU DON'T KNOW WHAT YOU ARE DOING                                               #
 rem  3                                                                                                                        #
 rem  4  Length of this comment section should be at most 4095 characters if EOL is LF only (Unix)                             #
 rem  5  Comment could contain anything, but it is best to set it to empty space                                               #
@@ -2893,72 +2997,31 @@ rem 28                                                                          
 rem 29                                                                                                                        #
 rem 30                                                                                                                        #
 rem 31                                                                                                                        #
-rem 32  LAST LINE, should be 1 character shorter than the rest                                              DO NOT MODIFY -> #
-:check_eol.test
+rem 32  LAST LINE: should be 1 character shorter than the rest                                              DO NOT MODIFY -> #
+:check_win_eol.test
 @exit /b 0
 
 
-:download   return_var_file_path  link  destination_folder
-set "%~1="
-setlocal EnableDelayedExpansion
-if not defined temp_path set "temp_path=!temp!"
-if not exist "!temp_path!" md "!temp_path!"
-for /f "tokens=1* delims=?#" %%a in ("%~2") do (
-    set "_filename=%%~nxa"
-    if not defined _filename set "_filename=download"
-)
-set "_script=!temp_path!\download_!random!.vbs"
-(
-    echo url = WScript.Arguments(0^)
-    echo dest_path = WScript.Arguments(1^)
-    echo filename = WScript.Arguments(2^)
-    echo=
-    echo set xmlHttp = createobject("MSXML2.ServerXMLHTTP.6.0"^)
-    echo On Error Resume Next
-    echo xmlHttp.Open "GET", url, False
-    echo if err.number ^<^> 0 then Wscript.Quit 1
-    echo xmlHttp.Send
-    echo if err.number ^<^> 0 then Wscript.Quit 1
-    echo on error goto 0
-    echo if xmlHttp.Status ^<^> 200 then WScript.Quit 1
-    echo=
-    echo set filename_regex = New RegExp
-    echo filename_regex.Pattern = "filename=""?([^"";]+)""?;?"
-    echo filename_regex.IgnoreCase = True
-    echo cdHeader = xmlHttp.getResponseHeader("Content-Disposition"^)
-    echo for each match in filename_regex.Execute(cdHeader^)
-    echo     filename = match.SubMatches(0^)
-    echo next
-    echo set FSO = CreateObject("Scripting.FileSystemObject"^)
-    echo save_path = FSO.BuildPath(dest_path, filename^)
-    echo if FSO.FileExists(save_path^) then FSO.DeleteFile save_path
-    echo Wscript.StdOut.Write save_path
-    echo=
-    echo set stream = createobject("Adodb.Stream"^)
-    echo stream.Type = 1
-    echo stream.Open
-    echo stream.Write xmlHttp.ResponseBody
-    echo stream.SaveToFile save_path, 2
-) > "!_script!"
-set "_result="
-for /f "usebackq tokens=*" %%o in (`cscript //nologo "!_script!" "%~2" "%~f3" "!_filename!"`) do set "_result=%%~fo"
-del /f /q "!_script!"
-if not defined _result exit /b 1
-for /f "tokens=*" %%r in ("!_result!") do (
-    endlocal
-    set "%~1=%%r"
-)
+:download_file   link  save_path
+if exist "%~2" del /f /q "%~2"
+if not exist "%~dp2" md "%~dp2"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('%~1', '%~2')"
+if not exist "%~2" exit /b 1
 exit /b 0
 
 
-:diffdate   return_var  end_date  [start_date]  [days_to_add]
+:diffdate   return_var  end_date  [start_date]
 set "%~1="
 setlocal EnableDelayedExpansion
 set "_difference=0"
-set "_args=/%~2/1/1/1  /%~3/1/1/1"
+set "_args=/%~2"
+if "%~3" == "" (
+    set "_args=!_args! /1/01/1970"
+) else set "_args=!_args! /%~3"
+set "_args=!_args:/ =/!"
 set "_args=!_args:/0=/!"
 for %%d in (!_args!) do for /f "tokens=1-3 delims=/" %%a in ("%%d") do (
-    set /a "_difference+= (%%c-1)*365  +  (%%c/4 - %%c/100 + %%c/400) + (%%a-1)*30 + %%a/2 + %%b"
+    set /a "_difference+= (%%c-1970)*365 + (%%c/4 - %%c/100 + %%c/400 - 477) + (%%a-1)*30 + %%a/2 + %%b"
     set /a "_leapyear=%%c %% 100"
     if "!_leapyear!" == "0" (
         set /a "_leapyear=%%c %% 400"
@@ -2968,7 +3031,6 @@ for %%d in (!_args!) do for /f "tokens=1-3 delims=/" %%a in ("%%d") do (
     if %%a GTR 2 set /a "_difference-=2"
     set /a "_difference*=-1"
 )
-set /a "_difference+=%~4 + 0"
 for /f "tokens=*" %%r in ("!_difference!") do (
     endlocal
     set "%~1=%%r"
@@ -2976,73 +3038,23 @@ for /f "tokens=*" %%r in ("!_difference!") do (
 exit /b 0
 
 rem ======================================== Framework ========================================
-:_.FRAMEWORK._     Core of the script
+:framework.__init__     Framework of the script
+exit /b 0
 
-rem ================================ Input yes/no ================================
+rem ================================ module ================================
+rem Module Framework
+rem ======================== .entry_point() ========================
 
-:Input_yesno   [-b | -t | -u | -s] [-d]  variable_name  [description]
-setlocal EnableDelayedExpansion EnableExtensions
-for %%v in (_truth  _binary  _unshortened _sign _defined) do set "%%v="
-set "_argc=1"
-for %%a in (%*) do (
-    set "_set_cmd="
-    for %%f in ("-b" "--binary") do         if /i "%%a" == "%%~f" set "_set_cmd=_binary=true"
-    for %%f in ("-t" "--truth") do          if /i "%%a" == "%%~f" set "_set_cmd=_truth=true"
-    for %%f in ("-u" "--unshortened") do    if /i "%%a" == "%%~f" set "_set_cmd=_unshortened=true"
-    for %%f in ("-s" "--sign") do           if /i "%%a" == "%%~f" set "_set_cmd=_sign=true"
-    for %%f in ("-d" "--defined") do        if /i "%%a" == "%%~f" set "_set_cmd=_defined=true"
-    if defined _set_cmd (
-        set "!_set_cmd!"
-        shift /!_argc!
-    ) else set /a "_argc+=1"
-)
-:Input_yesno.input
-echo=
-if "%~2" == "" (
-    set /p "user_input=%~1? Y/N? "
-) else set /p "user_input=%~2"
-if /i "!user_input!" == "Y" goto Input_yesno.convert
-if /i "!user_input!" == "N" goto Input_yesno.convert
-goto Input_yesno.input
-:Input_yesno.convert
-set "_result=!user_input!"
-if defined _binary (
-    if /i "!user_input!" == "Y" set "_result=1"
-    if /i "!user_input!" == "N" set "_result=0"
-)
-if defined _truth (
-    if /i "!user_input!" == "Y" set "_result=true"
-    if /i "!user_input!" == "N" set "_result=false"
-)
-if defined _unshortened (
-    if /i "!user_input!" == "Y" set "_result=yes"
-    if /i "!user_input!" == "N" set "_result=no"
-)
-if defined _sign (
-    if /i "!user_input!" == "Y" set "_result=+"
-    if /i "!user_input!" == "N" set "_result=-"
-)
-if defined _defined (
-    if /i "!user_input!" == "N" set "_result="
-)
-for /f "tokens=1* delims=_" %%a in ("Z_!_result!") do (
-    endlocal
-    set "%~1=%%b"
-    if /i "%user_input%" == "Y" exit /b 0
-)
-exit /b 1
-
-rem ================================ Module.detect() ================================
-
-:Module.detect
-@for /f "tokens=1,2 delims=:" %%a in ("%1") do @if /i "%%a" == "--module" @(
-    for /f "tokens=1* delims= " %%c in ("%*") do @call :__module__.%%b %%d
+:module.entry_point   [--module=<name>]  [args]
+@if /i "%1" == "--module" @(
+    for /f "tokens=1* delims= " %%a in ("%*") do @call :scripts.%~2 %%b
     exit /b
-)
-@goto __module__.__main__
+) else @goto __main__
+@exit /b
 
+rem ======================== .updater() ========================
 
-:Module.updater   <check|upgrade>  script_path
+:module.updater   <check|upgrade>  script_path
 setlocal EnableDelayedExpansion
 set "_set_cmd="
 if /i "%1" == "check" set "_set_cmd=_show=true"
@@ -3051,78 +3063,60 @@ if defined _set_cmd (
     set "!_set_cmd!"
     shift /1
 )
-set "_metadata=NAME DESCRIPTION VERSION RELEASE URL DOWNLOAD_URL"
-echo Checking requirements...
-call :Module.check_support "%~1" || ( 1>&2 echo script does not support call as 'Module' & exit /b 1 )
-for %%v in (!_metadata!) do set "_module.%%v="
-call "%~1" --module:lib :__setup__ _module. || ( 1>&2 echo error: module call failed & exit /b 1 )
-if not defined _module.DOWNLOAD_URL 1>&2 echo error: script DOWNLOAD_URL is undefined & exit /b 1
-echo Downloading updates...
-call :download _downloaded "!_module.DOWNLOAD_URL!"
-if not exist "!_downloaded!" 1>&2 echo error: download failed & exit /b 1
-for %%f in ("!_downloaded!") do (
-    if exist "%%~ff.bat" del /f /q "%%~ff.bat"
-    ren "%%~ff" "%%~nxf.bat"
-    set "_downloaded=!_downloaded!.bat"
+if not defined temp_path set "temp_path=!temp!"
+set "_downloaded=!temp_path!\latest_version.bat"
+call :module.read_metadata _module. "%~1"  || ( 1>&2 echo error: failed to read module information & exit /b 1 )
+call %batchlib%:download_file "!_module.download_url!" "!_downloaded!" || ( 1>&2 echo error: download failed & exit /b 1 )
+call :module.is_module "!_downloaded!" || ( 1>&2 echo error: failed to read update information & exit /b 2 )
+call :module.read_metadata _downloaded. "!_downloaded!"  || ( 1>&2 echo error: failed to read update information & exit /b 2 )
+if not defined _downloaded.version ( 1>&2 echo error: failed to read update information & exit /b 2 )
+if /i not "!_downloaded.name!" == "!_module.name!" ( 1>&2 echo warning: module name does not match )
+call :module.version_compare "!_downloaded.version!" EQU "!_module.version!" && ( echo You are using the latest version & exit /b 99 )
+call :module.version_compare "!_downloaded.version!" GTR "!_module.version!" || ( echo No updates available & exit /b 99 )
+if defined _show (
+    call %batchlib%:diffdate update_age !date:~4! !_downloaded.release_date! 2> nul && (
+        echo !_downloaded.description! !_downloaded.version! is now available ^(!update_age! days ago^)
+    ) || echo !_downloaded.description! !_downloaded.version! is now available ^(since !_downloaded.release_date!^)
+    del /f /q "!_downloaded!"
 )
-echo Checking compatibility...
-call :Module.check_support "!_downloaded!" || ( 1>&2 echo error: update script does not support call as 'Module' & exit /b 2 )
-for %%v in (!_metadata!) do set "_downloaded.%%v="
-call "!_downloaded!" --module:lib :__setup__ _downloaded. || ( 1>&2 echo error: module call failed & exit /b 2 )
-if not defined _downloaded.VERSION 1>&2 echo error: downloaded VERSION is undefined & exit /b 2
-if /i not "!_downloaded.NAME!" == "!_module.NAME!" 1>&2 echo warn: script name mismatch
-call :Module.is_newer "!_module.VERSION!"  "!_downloaded.VERSION!" || ( echo No updates available & exit /b 3 )
-call :diffdate update_age !date:~4! !_downloaded.RELEASE!
-echo !_downloaded.DESCRIPTION! !_downloaded.VERSION! is now available (!update_age! days ago)
 if not defined _upgrade exit /b 0
 echo Updating script...
 move "!_downloaded!" "%~f1" > nul && (
     echo Update success
-    echo Script will exit
-    pause
-    exit
+    if "%~f1" == "%~f0" (
+        echo=
+        echo Press any key to restart script...
+        pause > nul
+        start "" /i cmd /c "%~f0"
+        exit 0
+    )
 ) || ( 1>&2 echo error: update failed & exit /b 1 )
 exit /b 0
 
+rem ======================== .read_metadata() ========================
 
-:Module.is_newer   first_version  second_version
-setlocal EnableDelayedExpansion
-set "_first=%~1"
-set "_second=%~2"
-for %%n in (_first _second) do for /f "tokens=1,2 delims=-" %%a in ("!%%n!") do (
-    for /f "tokens=1-3 delims=." %%c in ("%%a") do (
-        set "%%n._MAJOR=%%c"
-        set "%%n._MINOR=%%d"
-        set "%%n._PATCH=%%e"
-    )
-    for /f "tokens=1-2 delims=." %%c in ("%%b") do (
-        set "%%n._PRE_ID=%%c"
-        set "%%n._PRE_INC=%%d"
-    )
-)
-for %%v in (_MAJOR _MINOR _PATCH) do (
-    if !_second.%%v! LSS !_first.%%v! exit /b 1
-    if !_second.%%v! GTR !_first.%%v! exit /b 0
-)
-if defined _first._PRE_ID (
-    if not defined _second._PRE_ID exit /b 0
-) else if defined _second._PRE_ID exit /b 1
-for %%v in (_PRE_ID _PRE_INC) do (
-    if !_second.%%v! LSS !_first.%%v! exit /b 1
-    if !_second.%%v! GTR !_first.%%v! exit /b 0
-)
-exit /b 2
+:module.read_metadata   return_var  script_path
+call :module.is_module "%~2" || exit /b 1
+for %%v in (
+    name version
+    author license 
+    description release_date
+    url download_url
+) do set "%~1%%v="
+call "%~2" --module=lib :metadata "%~1" || exit /b 1
+exit /b 0
 
+rem ======================== .is_module() ========================
 
-:Module.check_support   file_path
+:module.is_module   file_path
 setlocal EnableDelayedExpansion
 set /a "_missing=0xF"
 for /f "usebackq tokens=* delims=@ " %%a in ("%~f1") do (
     for /f "tokens=1-2 delims= " %%b in ("%%a") do (
-        if /i "%%b %%c" == "goto Module.detect" set /a "_missing&=~0x1"
-        if /i "%%b" == ":Module.detect"         set /a "_missing&=~0x2"
-        if /i "%%b" == ":__module__.lib"        set /a "_missing&=~0x4"
-        if /i "%%b" == ":__setup__"             set /a "_missing&=~0x8"
+        if /i "%%b %%c" == "goto module.entry_point" set /a "_missing&=~0x1"
+        if /i "%%b" == ":module.entry_point" set /a "_missing&=~0x2"
+        if /i "%%b" == ":metadata" set /a "_missing&=~0x4"
+        if /i "%%b" == ":scripts.lib" set /a "_missing&=~0x8"
     )
 )
 if not "!_missing!" == "0" exit /b 1
@@ -3131,13 +3125,143 @@ for %%x in (.bat .cmd) do if "%~x1" == "%%x" set "_callable=true"
 if not defined _callable exit /b 2
 exit /b 0
 
-rem ======================================== GUI Pack List ========================================
-:_.GUI_LIST._     Sudoku GUI Packs
+rem ======================== .version_compare() ========================
+
+:module.version_compare   version1 comparison version2
+setlocal EnableDelayedExpansion
+if /i "%3" == "" exit /b 2
+set "_found="
+for %%c in (EQU NEQ GTR GEQ LSS LEQ) do if /i "%~2" == "%%c" set "_found=true"
+if not defined _found exit /b 2
+set "_first=%~1"
+set "_second=%~3"
+for %%v in (_first _second) do for /f "tokens=1-2 delims=-" %%a in ("!%%v!") do (
+    for /f "tokens=1-3 delims=." %%c in ("%%a.0.0.0") do set "%%v=%%c.%%d.%%e"
+    set "_normalized="
+    if "%%b" == "" set "_normalized=4.0"
+    for /f "tokens=1-2 delims=." %%c in ("%%b") do (
+        for %%s in (
+            "1:a alpha"
+            "2:b beta"
+            "3:rc c pre preview"
+        ) do for /f "tokens=1-2 delims=:" %%n in (%%s) do for %%i in (%%o) do (
+            if /i "%%c" == "%%i" (
+                if "%%d" == "" (
+                    set "_normalized=%%n.0"
+                ) else set "_normalized=%%n.%%d"
+            )
+        )
+    )
+    if not defined _normalized exit /b 2
+    set "%%v=!%%v!.!_normalized!"
+)
+for %%c in (EQU NEQ) do if /i "%~2" == "%%c" if "!_first!" %~2 "!_second!" ( exit /b 0 ) else exit /b 1
+for %%c in (GEQ LEQ) do if /i "%~2" == "%%c" if "!_first!" EQU "!_second!" ( exit /b 0 )
+for %%c in (GTR LSS) do if /i "%~2" == "%%c" if "!_first!" EQU "!_second!" ( exit /b 1 )
+for /l %%i in (1,1,5) do (
+    for %%v in (_first _second) do for /f "tokens=1* delims=." %%a in ("!%%v!") do (
+        set "%%v_num=%%a"
+        set "%%v=%%b"
+    )
+    if not "!_first_num!" == "!_second_num!" (
+        if !_first_num! %~2 !_second_num! (
+            exit /b 0
+        ) else exit /b 1
+    )
+)
+endlocal
+exit /b 2
+
+rem ======================================== Shortcuts ========================================
+:shortcuts.__init__     Shortcuts to type less codes
+exit /b 0
+
+rem ================================ Input yes/no ================================
+
+:Input.yesno   variable_name  [--description=<description>]  [--yes=<value>]  [--no=<value>]
+setlocal EnableDelayedExpansion EnableExtensions
+set "_description=Y/N? "
+set "yes.value=Y"
+set "no.value=N"
+set parse_args.args= ^
+    "-d --description   :var:_description" ^
+    "-y --yes           :var:yes.value" ^
+    "-n --no            :var:no.value"
+call :parse_args %*
+:Input.yesno.loop
+echo=
+set /p "user_input=!_description!"
+if /i "!user_input!" == "Y" goto Input.yesno.convert
+if /i "!user_input!" == "N" goto Input.yesno.convert
+goto Input.yesno.loop
+:Input.yesno.convert
+set "_result="
+if /i "!user_input!" == "Y" set "_result=!yes.value!"
+if /i "!user_input!" == "N" set "_result=!no.value!"
+if defined _result (
+    for /f tokens^=*^ delims^=^ eol^= %%a in ("!_result!") do (
+        endlocal
+        set "%~1=%%a"
+        if /i "%user_input%" == "Y" exit /b 0
+    )
+) else (
+    endlocal
+    set "%~1="
+    if /i "%user_input%" == "Y" exit /b 0
+)
+exit /b 1
+
+rem ================================ parse_args() ================================
+
+:parse_args   %*
+set "_store_var="
+set "parse_args.argc=1"
+set "parse_args.shift="
+call :parse_args.loop %*
+set /a "parse_args.argc-=1"
+set "parse_args._store_var="
+set "parse_args._value="
+(
+    goto 2> nul
+    for %%n in (!parse_args.shift!) do shift /%%n
+    ( call )
+)
+exit /b 1
+:parse_args.loop
+set _value=%1
+if not defined _value exit /b
+set "_shift="
+if defined parse_args._store_var (
+    set "!parse_args._store_var!=%~1"
+    set "parse_args._store_var="
+    set "_shift=true"
+)
+for %%o in (!parse_args.args!) do for /f "tokens=1-2* delims=:" %%b in (%%o) do (
+    for %%f in (%%b) do if /i "!_value!" == "%%f" (
+        if /i "%%c" == "flag" set "%%d"
+        if /i "%%c" == "var" set "parse_args._store_var=%%d"
+        set "_shift=true"
+    )
+)
+if defined _shift (
+    set "parse_args.shift=!parse_args.shift! !parse_args.argc!"
+) else set /a "parse_args.argc+=1"
+shift /1
+goto parse_args.loop
+
+rem ======================================== Assets ========================================
+:assets.__init__     Additional data to bundle
+exit /b 0
+
+rem ================================ GUI Packs ================================
+:assets.style.__init__
+exit /b 0
+
 
 $ GUI lines_n_pipes     Lines & Pipes
 $ GUI boxchar           Box Characters
 
-rem ======================================== GUI Pack: Lines & Pipes ========================================
+rem ======================== Lines & Pipes ========================
 
 :Style_lines_n_pipes.charset
 set "hLine=-"
@@ -3162,7 +3286,7 @@ echo %DQ%                 ____   _    _   ___     _____   _   _  _    _
 echo %DQ%                //  \\  ||  ||  || \\   //   \\  || //  ||  ||
 echo %DQ%                \\___   ||  ||  ||  \\  ||   ||  ||//   ||  ||
 echo %DQ%                _   \\  ||  ||  ||  //  ||   ||  ||\\   ||  ||
-echo %DQ%                \\__//  \\__//  ||_//   \\___//  || \\  \\__//  !SOFTWARE_VERSION!
+echo %DQ%                \\__//  \\__//  ||_//   \\___//  || \\  \\__//  !SOFTWARE.VERSION!
 echo %DQ%
 echo %DQ%                        _______________________________
 echo %DQ%                        |        Made by wthe22       |
@@ -3170,7 +3294,7 @@ echo %DQ%                        | http://winscr.blogspot.com/ |
 echo %DQ%                        |_____________________________|
 goto :EOF
 
-rem ======================================== GUI Pack: Box Characters ========================================
+rem ======================== Box Characters ========================
 
 :Style_boxchar.charset.ori
 rem                 ANSI   UTF8     KEYBOARD
@@ -3196,7 +3320,7 @@ echo                       ²²²²² ²   ² ²²²²  ²²²²² ²  ²² ²  
 echo                       ²     ²   ² ²   ² ²   ² ² ²²  ²   ²
 echo                       ²²²²² ²   ² ²   ² ²   ² ²²²   ²   ²
 echo                           ² ²   ² ²   ² ²   ² ² ²²  ²   ²
-echo                       ²²²²² ²²²²² ²²²²  ²²²²² ²  ²² ²²²²²  !SOFTWARE_VERSION!
+echo                       ²²²²² ²²²²² ²²²²  ²²²²² ²  ²² ²²²²²  !SOFTWARE.VERSION!
 echo=
 echo                                ΙΝΝΝΝΝΛΝΝΝΝΝΛΝΝΝΝΝ»
 echo                                Ί ³8³ Ί ³ ³3Ί ³9³ Ί
@@ -3281,8 +3405,9 @@ call "!temp_path!\_boxchar.bat"
 goto :EOF
 
 
-rem ======================================== Difficulty List ========================================
-:_.DIFFICULTY_LIST._     Sudoku Difficulty List
+rem ================================ Difficulty List ================================
+:assets.difficulty.__init__
+exit /b 0
 
 
 $ Difficulty 67-75  Beginner
@@ -3295,7 +3420,7 @@ $ Difficulty rand   Random
 set "method_used=2"
 set /a "min_givens=!total_cells! * 2 / 3"
 set /a "max_givens=!total_cells! * 3 / 4"
-call :rand targetGivens "!total_cells! * 2 / 3"   "!total_cells! * 3 / 4"
+call %batchlib%:rand targetGivens "!total_cells! * 2 / 3"   "!total_cells! * 3 / 4"
 goto :EOF
 
 
@@ -3303,7 +3428,7 @@ goto :EOF
 set "method_used=2"
 set /a "min_givens=!total_cells! * 2 / 5 + 1"
 set /a "max_givens=!total_cells! * 2 / 3"
-call :rand targetGivens "!total_cells! * 4 / 9"   "!total_cells! * 5 / 9"
+call %batchlib%:rand targetGivens "!total_cells! * 4 / 9"   "!total_cells! * 5 / 9"
 goto :EOF
 
 
@@ -3322,8 +3447,9 @@ set /a "max_givens=!total_cells! * 2 / 5 + 1"
 set "targetGivens=0"
 goto :EOF
 
-rem ======================================== Built-in Sudoku ========================================
-:_.SUDOKU_LIST._     Built-in Sudoku List
+rem ================================ Built-in Sudoku ================================
+:assets.sudoku.__init__
+exit /b 0
 
 
 rem Add new list:
@@ -3419,3 +3545,8 @@ C1004E9B0F73000050030000000000009B000130D04C0620000GA00D005813001GCF50E800900B60
 #sudoku 3x3 SudokuWiki Unsolvable #28
 600008940900006100070040000200610000000000200089002000000060005000000030800001600
 #end
+
+rem ======================================== End of Script ========================================
+:EOF     May be needed if command extenstions are disabled
+rem Anything beyond this are not part of the code
+exit /b
