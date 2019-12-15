@@ -1,3 +1,156 @@
+@rem UTF-8-BOM guard > nul 2> nul
+@for %%f in ("Sudoku 3.2*.bat") do @if exist "%%~ff" @if not "%%~ff" == "%~f0" @set "__future__=%%~ff"
+@goto module.entry_point
+
+rem ======================================== Metadata ========================================
+
+:metadata   [prefix]
+set "%~1name=sudoku"
+set "%~1version=2.1.1"
+set "%~1author=wthe22"
+set "%~1license=The MIT License"
+set "%~1description=Sudoku"
+set "%~1release_date=08/17/2019"   :: MM/DD/YYYY
+set "%~1url=https://winscr.blogspot.com/2013/08/sudoku.html"
+set "%~1download_url=https://gist.githubusercontent.com/wthe22/5eb8acec50840b7a29b197112e4f9dea/raw"
+exit /b 0
+
+
+:about
+setlocal EnableDelayedExpansion
+call :metadata
+if not defined preferred.style set "preferred.style=lines_n_pipes"
+call :Style_!preferred.style!.splash_screen
+echo=
+echo Updated on !release_date!
+echo=
+echo Feel free to use, share, or modify this script for your projects :)
+echo Visit http://winscr.blogspot.com/ for more scripts^^!
+echo=
+echo=
+echo Copyright (C) 2019 by !author!
+echo Licensed under !license!
+endlocal
+exit /b 0
+
+rem ======================================== License ========================================
+
+:license
+echo Copyright 2019 wthe22
+echo=
+echo Permission is hereby granted, free of charge, to any person obtaining a 
+echo copy of this software and associated documentation files (the "Software"), 
+echo to deal in the Software without restriction, including without limitation 
+echo the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+echo and/or sell copies of the Software, and to permit persons to whom the 
+echo Software is furnished to do so, subject to the following conditions:
+echo=
+echo The above copyright notice and this permission notice shall be included in 
+echo all copies or substantial portions of the Software.
+echo=
+echo THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
+echo OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+echo FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+echo AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+echo LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+echo FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+echo DEALINGS IN THE SOFTWARE.
+exit /b 0
+
+rem ======================================== Changelog ========================================
+
+:changelog
+for /f "usebackq tokens=1-2* delims=." %%a in ("%~f0") do (
+    if /i "%%a.%%b" == ":changelog.text" (
+        echo !SOFTWARE.name! %%c
+        call :changelog.text.%%c
+        echo=
+    )
+)
+exit /b 0
+
+
+:changelog.latest
+for /f "usebackq tokens=1-2* delims=." %%a in ("%~f0") do (
+    if /i "%%a.%%b" == ":changelog.text" (
+        echo !SOFTWARE.name! %%c
+        call :changelog.text.%%c
+        exit /b 0
+    )
+)
+exit /b 0
+
+
+:changelog.text.2.1.1 (2019-08-17)
+echo    Forward-compatible update
+echo    - Script can now read the file format of 3.x, if you have version 3.2 >= of this script, 
+echo      Just replace the file name at the second line with your file name
+echo      If you don't have it, this script will just behave almost exactly the same as version 2.1
+exit /b 0
+
+:changelog.text.2.1 (2015-10-10)
+echo    - Added support for 4x4 and 6x6 sudoku (with minor display problems)
+echo    - Few menu redesigns
+echo    - Improve bruteforce speed (2-3x faster)
+exit /b 0
+
+:changelog.text.2.0 (2014)
+echo    - Merged all menus (Play, Import, View, Solve) to one file
+echo    - Major rework in code
+echo    - Redesigned some menus
+echo    - Bruteforce solver uses bruteforce and solve method (took less than 5mins to solve Arto Inkala)
+echo    - Added solution count feature
+echo    - Can now generate Sudoku (easy and random difficulty only)
+exit /b 0
+
+:changelog.text.1.0 (2013-08-23)
+echo    - Initial version
+echo    - Each menu is written in seperate script
+echo    - Bruteforce solver uses pure bruteforce method (took 1h 30min to solve Arto Inkala)
+exit /b 0
+
+rem ======================================== Debug functions ========================================
+
+:exception.raise
+@echo=
+@echo=
+@for %%t in (%*) do @ 1>&2 echo %%~t
+@echo=
+@echo Press any key to exit...
+@pause > nul
+@exit
+
+rem ======================================== Main ========================================
+
+:__main__
+@call :scripts.main %*
+@exit %errorlevel%
+
+rem ======================================== Scripts/Entry points  ========================================
+:scripts.__init__
+@exit /b 0
+
+rem ================================ library script ================================
+
+:scripts.lib
+@call :%*
+@exit /b
+
+rem ================================ main script ================================
+
+:scripts.main
+@set "__name__=__main__"
+@echo off
+prompt $$ 
+setlocal EnableDelayedExpansion EnableExtensions
+call :metadata SOFTWARE.
+title !SOFTWARE.description! !SOFTWARE.version!
+cls
+echo Loading script...
+
+for %%n in (1 2) do call :fix_eol.alt%%n
+@rem Scripts below are from version of 2.1 with slight modification
+
 
 
 @goto scriptStart
@@ -31,7 +184,7 @@ set "sudokuBlockHeight=3"
 
 set "solutionCountMax=20"
 
-set "pathData=BatchScript_Data\Sudoku\"
+set "pathData=Data\Sudoku\"
 
 set "userInput=?"
 
@@ -40,8 +193,8 @@ title Sudoku
 cls
 call :splashScreen
 
-set "pathPuzzles=%pathData%%sudokuBlockWidth%x%sudokuBlockHeight%\Puzzles\"
-set   "pathSaves=%pathData%%sudokuBlockWidth%x%sudokuBlockHeight%\Saves\"
+set "pathPuzzles=%pathData%\Puzzles\"
+set   "pathSaves=%pathData%\Saves\"
 
 for %%p in (
     pathPuzzles
@@ -879,7 +1032,15 @@ goto :EOF
 
 rem ===================================== Menu =====================================
 
-:selectSudoku [validcheck]
+rem from __future__
+:selectSudoku   [Y]
+if not defined __future__ goto selectSudoku.__past__
+if /i "%1" == "Y" (
+    call :__future__.v3.2 :select_sudoku --validate
+) else call :__future__.v3.2 :select_sudoku 
+goto :EOF
+
+:selectSudoku.__past__ [validcheck]
 set "selectedName="
 set "selectInput=0"
 set "userInput=0"
@@ -1942,3 +2103,79 @@ echo Invalid choice
 pause
 goto list_Default2x2
 
+rem ======================================== From Future ========================================
+:__future__.__init__     Functions from future (version 3.2.x)
+
+
+:__future__.v3.2
+setlocal EnableDelayedExpansion EnableExtensions
+set "data_path=!pathData!"
+set "temp_path=!temp!\BatchScript\Sudoku\"
+set "puzzle_path=!pathPuzzles!"
+set "save_path=!pathSaves!"
+if not exist "!temp_path!" md "!temp_path!"
+
+set "ALPHABET=_ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+set "SYMBOL=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+set "applied.size="
+set "Block_size.list=!sudokuBlockWidth!x!sudokuBlockHeight!"
+set "error_color=0C"
+
+@call "!__future__!" --module=lib :Display.evaluate_color
+@call "!__future__!" --module=lib %*
+
+set "userInput="
+if not defined selected.file set "userInput=0"
+
+call :endlocal ^
+    selected.name:sudokuName ^
+    selected.puzzle_array:sudokuPuzzleArray ^
+    selected.answer_array:sudokuAnswerArray ^
+    selected.solvings_array:sudokuSaveArray ^
+    userInput
+
+@exit /b
+
+rem ======================================== Batch Script Library ========================================
+:lib.__init__     Collection of Functions
+exit /b 0
+
+
+:endlocal   old_name:new_name  [old_name:new_name [...]]
+setlocal EnableDelayedExpansion
+set LF=^
+%=REQURED=%
+%=REQURED=%
+set "_content="
+for %%v in (%*) do for /f "tokens=1,2 delims=:" %%a in ("%%~v:%%~v") do (
+    set "_var=!%%a! "
+    call :endlocal.to_ede
+    set "_content=!_content!%%b=!_var:~0,-1!!LF!"
+)
+for /f "tokens=1* delims==" %%a in ("!_content!") do (
+    if defined _content (
+        goto 2> nul
+        endlocal
+    )
+    set "%%a=%%b"
+    if "!!" == "" (
+        set "%%a=!%%a:~1!"
+    ) else (
+        setlocal EnableDelayedExpansion
+        set "_var=!%%a!"
+        call :endlocal.to_dde
+        set "_var=!_var:~1!"
+        for /f "delims=" %%c in ("!_var!") do (
+            endlocal
+            set "%%a=%%c"
+        )
+    )
+)
+exit /b 0
+:endlocal.to_ede
+set "_var=^!!_var:^=^^^^!"
+set "_var=%_var:!=^^^!%"
+exit /b
+:endlocal.to_dde
+set "_var=%_var%"
+exit /b
