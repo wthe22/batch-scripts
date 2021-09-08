@@ -5,7 +5,7 @@ rem ======================================== Metadata ==========================
 
 :metadata   [prefix]
 set "%~1name=sudoku"
-set "%~1version=3.2"
+set "%~1version=3.2.1"
 set "%~1author=wthe22"
 set "%~1license=The MIT License"
 set "%~1description=Sudoku"
@@ -87,7 +87,6 @@ set     "error_color=0C"    Error in solvings
 rem Uncomment this if you have display problems with box character style
 rem set "default_codepage=437"
 
-
 rem Macros to call external module (use absolute paths)
 set "batchlib="
 exit /b 0
@@ -123,6 +122,10 @@ for /f "usebackq tokens=1-2* delims=." %%a in ("%~f0") do (
 )
 exit /b 0
 
+
+:changelog.text.3.2.1 (2019-07-20)
+echo    - Updated some overlooked library functions at version 3.2
+exit /b 0
 
 :changelog.text.3.2 (2019-07-20)
 echo    Internal
@@ -258,7 +261,7 @@ title !SOFTWARE.description! !SOFTWARE.version!
 cls
 echo Loading script...
 
-for %%n in (1 2) do call :fix_eol.alt%%n scripts.main.reload
+for %%n in (1 2) do call :fix_eol.alt%%n
 call :config
 
 for %%p in (
@@ -2600,7 +2603,7 @@ exit /b 0
 rem ======================================== Batch Script Library ========================================
 :lib.__init__
 rem Sources:
-rem - batchlib 2.0-b.3
+rem - batchlib 2.0-b.4
 exit /b 0
 
 
@@ -2684,12 +2687,12 @@ call :parse_args %*
 set "_path=!%~1!"
 if "!_path:~0,1!!_path:~-1,1!" == ^"^"^"^" set "_path=!_path:~1,-1!"
 if "!_path:~-1,1!" == ":" set "_path=!_path!\"
-for /f tokens^=1-2*^ delims^=?^"^<^>^| %%a in ("_?_!_path!_") do if not "%%c" == "" 1>&2 echo Invalid path & exit /b 1
-for /f "tokens=1-2* delims=*" %%a in ("_*_!_path!_") do if not "%%c" == "" 1>&2 echo Wildcards are not allowed & exit /b 1
+for /f tokens^=1-2*^ delims^=?^"^<^>^| %%a in ("_?_!_path!_") do if not "%%c" == "" ( 1>&2 echo Invalid path & exit /b 1 )
+for /f "tokens=1-2* delims=*" %%a in ("_*_!_path!_") do if not "%%c" == "" ( 1>&2 echo Wildcards are not allowed & exit /b 1 )
 rem (!) Can be improved
 if "!_path:~1,1!" == ":" (
-    if not "!_path::=!" == "!_path:~0,1!!_path:~2!" 1>&2 echo Invalid path & exit /b 1
-) else if not "!_path::=!" == "!_path!" 1>&2 echo Invalid path & exit /b 1
+    if not "!_path::=!" == "!_path:~0,1!!_path:~2!" ( 1>&2 echo Invalid path & exit /b 1 )
+) else if not "!_path::=!" == "!_path!" ( 1>&2 echo Invalid path & exit /b 1 )
 set "file_exist=false"
 for %%f in ("!_path!") do (
     set "_path=%%~ff"
@@ -2830,14 +2833,10 @@ for %%f in (!temp_path!\!_filename!) do (
     set "_filename=%%~nf"
 )
 for %%v in (_init_only  _list_names) do set "%%v="
-for %%a in (%*) do (
-    set "_set_cmd="
-    for %%f in ("-i" "--initialize") do if /i "%%a" == "%%~f" set "_set_cmd=_init_only=true"
-    for %%f in ("-l" "--list") do       if /i "%%a" == "%%~f" set "_set_cmd=_list_names=true"
-    if defined _set_cmd (
-        set "!_set_cmd!"
-    ) else 1>&2 echo error: unknown argument %%a & exit /b 1
-)
+set parse_args.args= ^
+    "-i --initialize    :flag:_init_only=true" ^
+    "-l --list          :flag:_list_names=true"
+call :parse_args %*
 
 rem Convert to hex and format
 if exist "!_filename!_latest.tmp" del /f /q "!_filename!_latest.tmp"
@@ -2939,16 +2938,16 @@ exit /b
 
 :fix_eol   goto_label
 :fix_eol.alt1
-rem Space
+rem THIS IS REQUIRED
 :fix_eol.alt2
-rem Fix EOL (LF to CRLF)
-@for %%n in (1 2) do call :check_win_eol.alt%%n --check-exist 2> nul && @(
-    call :check_win_eol.alt%%n || @(
+for %%n in (1 2) do call :check_win_eol.alt%%n --check-exist 2> nul && (
+    call :check_win_eol.alt%%n || (
         echo Converting EOL...
         type "%~f0" | more /t4 > "%~f0.tmp" && (
             move "%~f0.tmp" "%~f0" > nul && (
-                goto 2> nul
-                goto %1
+                echo Convert EOL done. Script will restart.
+                start "" /i cmd /c "%~f0"
+                exit 0
             )
         )
         echo warning: Convert EOL failed
