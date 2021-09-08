@@ -5,11 +5,11 @@ rem ======================================== Metadata ==========================
 
 :metadata   [prefix]
 set "%~1name=sudoku"
-set "%~1version=3.2.1"
+set "%~1version=3.2.2"
 set "%~1author=wthe22"
 set "%~1license=The MIT License"
 set "%~1description=Sudoku"
-set "%~1release_date=07/20/2019"   :: MM/DD/YYYY
+set "%~1release_date=08/17/2019"   :: MM/DD/YYYY
 set "%~1url=https://winscr.blogspot.com/2013/08/sudoku.html"
 set "%~1download_url=https://gist.githubusercontent.com/wthe22/5eb8acec50840b7a29b197112e4f9dea/raw"
 exit /b 0
@@ -96,7 +96,7 @@ exit /b 0
 rem Define your preferences or config modifications here
 
 rem Macros to call external module (use absolute paths)
-rem set batchlib="%~dp0batchlib.bat" --module=lib 
+rem set batchlib="%~dp0batchlib-min.bat" --module=lib %=END=%
 exit /b 0
 
 rem ======================================== Changelog ========================================
@@ -123,23 +123,7 @@ for /f "usebackq tokens=1-2* delims=." %%a in ("%~f0") do (
 exit /b 0
 
 
-:changelog.text.3.2.1 (2019-07-20)
-echo    - Updated some overlooked library functions at version 3.2
-exit /b 0
-
-:changelog.text.3.2 (2019-07-20)
-echo    Internal
-echo    - Updated library and framework codes (codes from batchlib 2.0-b.4)
-echo    - Changed 'GOTO' to 'CALL' at main menu for more predictable program flow
-echo=
-echo    Documentation
-echo    - Updated documentation to comply with batchlib 2.0-b.3
-echo=
-echo    Backward Incompatibilities
-echo    - Version 3.2-b cannot update to this version due to incompatible framework version
-exit /b 0
-
-:changelog.text.3.2-b (2019-03-25)
+:changelog.text.3.2.2 (2019-08-17)
 echo    Code Refactoring Update
 echo    - Fixed a minor error in labeling of built-in sudoku
 echo    - Fixed clear line error if script is set to read-only
@@ -147,9 +131,11 @@ echo    - Added support for ANSI escape sequence for color GUI
 echo    - Now imported sudoku array is loaded to GUI and is editable
 echo    - Changed data folder name (BatchScript_Data -^> Data)
 echo    - Changed default GUI for greater compatibility
-echo    - Updated Library to version 2.0-b.1
-echo    - Integrated framework from Library
 echo    - Added ability to check for updates and upgrade script
+echo    - Script can now be saved as UTF-8 without breaking GUI
+echo    - Updated library and integrated framework version from batchlib 2.0
+echo    - Changed codes at main menu for more predictable program flow
+echo    - Simplified changelog for version 3.2.x
 exit /b 0
 
 :changelog.text.3.1.5 (2018-02-08)
@@ -2600,10 +2586,49 @@ for %%v in (!Style.list!) do (
 if /i not "%1" == "list" if not defined selected.style exit /b 1
 exit /b 0
 
+rem ======================================== Shortcuts ========================================
+:shortcuts.__init__     Shortcuts to type less codes
+exit /b 0
+
+rem ================================ Input yes/no ================================
+
+:Input.yesno   variable_name  [--description=<description>]  [--yes=<value>]  [--no=<value>]
+setlocal EnableDelayedExpansion EnableExtensions
+set "_description=Y/N? "
+set "yes.value=Y"
+set "no.value=N"
+set parse_args.args= ^
+    ^ "-d --description     :var:_description" ^
+    ^ "-y --yes             :var:yes.value" ^
+    ^ "-n --no              :var:no.value"
+call :parse_args %*
+:Input.yesno.loop
+echo=
+set /p "user_input=!_description!"
+if /i "!user_input!" == "Y" goto Input.yesno.convert
+if /i "!user_input!" == "N" goto Input.yesno.convert
+goto Input.yesno.loop
+:Input.yesno.convert
+set "_result="
+if /i "!user_input!" == "Y" set "_result=!yes.value!"
+if /i "!user_input!" == "N" set "_result=!no.value!"
+if defined _result (
+    for /f tokens^=*^ delims^=^ eol^= %%a in ("!_result!") do (
+        endlocal
+        set "%~1=%%a"
+        if /i "%user_input%" == "Y" exit /b 0
+    )
+) else (
+    endlocal
+    set "%~1="
+    if /i "%user_input%" == "Y" exit /b 0
+)
+exit /b 1
+
 rem ======================================== Batch Script Library ========================================
 :lib.__init__
 rem Sources:
-rem - batchlib 2.0-b.4
+rem - batchlib 2.0
 exit /b 0
 
 
@@ -2621,6 +2646,11 @@ if defined %~2 (
     )
     set /a "%~1+=1"
 )
+exit /b 0
+
+
+:strip_dquotes   variable_name
+if "!%~1:~0,1!!%~1:~-1,1!" == ^"^"^"^" set "%~1=!%~1:~1,-1!"
 exit /b 0
 
 
@@ -2652,11 +2682,6 @@ for /f "tokens=*" %%r in ("!_result!") do (
 exit /b 0
 
 
-:strip_dquotes   variable_name
-if "!%~1:~0,1!!%~1:~-1,1!" == ^"^"^"^" set "%~1=!%~1:~1,-1!"
-exit /b 0
-
-
 :setup_clearline
 setlocal EnableDelayedExpansion
 set "_index=0"
@@ -2679,17 +2704,16 @@ exit /b 0
 setlocal EnableDelayedExpansion EnableExtensions
 for %%v in (_require_attrib  _require_exist) do set "%%v="
 set parse_args.args= ^
-    "-e --exist     :flag:_require_exist=true" ^
-    "-n --not-exist :flag:_require_exist=false" ^
-    "-f --file      :flag:_require_attrib=-" ^
-    "-d --directory :flag:_require_attrib=d"
+    ^ "-e --exist       :flag:_require_exist=true" ^
+    ^ "-n --not-exist   :flag:_require_exist=false" ^
+    ^ "-f --file        :flag:_require_attrib=-" ^
+    ^ "-d --directory   :flag:_require_attrib=d"
 call :parse_args %*
 set "_path=!%~1!"
 if "!_path:~0,1!!_path:~-1,1!" == ^"^"^"^" set "_path=!_path:~1,-1!"
 if "!_path:~-1,1!" == ":" set "_path=!_path!\"
 for /f tokens^=1-2*^ delims^=?^"^<^>^| %%a in ("_?_!_path!_") do if not "%%c" == "" ( 1>&2 echo Invalid path & exit /b 1 )
 for /f "tokens=1-2* delims=*" %%a in ("_*_!_path!_") do if not "%%c" == "" ( 1>&2 echo Wildcards are not allowed & exit /b 1 )
-rem (!) Can be improved
 if "!_path:~1,1!" == ":" (
     if not "!_path::=!" == "!_path:~0,1!!_path:~2!" ( 1>&2 echo Invalid path & exit /b 1 )
 ) else if not "!_path::=!" == "!_path!" ( 1>&2 echo Invalid path & exit /b 1 )
@@ -2770,16 +2794,20 @@ exit /b 0
 set "%~1=%~2"
 set "%~1=[!%~1:~0,1!;!%~1:~1,1!m"
 for %%t in (
-    0.40.30  1.44.34  2.42.32  3.46.36 
-    4.41.31  5.45.35  6.43.33  7.47.37
-    8.100.90  9.104.94  A.102.92  B.106.96
-    C.101.91  D.105.95  E.103.93  F.107.97
-) do for /f "tokens=1-3 delims=." %%a in ("%%t") do (
+    0--40-30  1--44-34  2--42-32  3--46-36
+    4--41-31  5--45-35  6--43-33  7--47-37
+    8-100-90  9-104-94  A-102-92  B-106-96
+    C-101-91  D-105-95  E-103-93  F-107-97
+) do for /f "tokens=1-3 delims=-" %%a in ("%%t") do (
     set "%~1=!%~1:[%%a;=[%%b;!"
     set "%~1=!%~1:;%%am=;%%cm!"
 )
 exit /b 0
 
+
+:wait   milliseconds
+for %%t in (%=wait=% %~1) do for /l %%w in (0,!wait._increment!,%%t00000) do call
+exit /b 0
 
 :wait.calibrate
 setlocal EnableDelayedExpansion
@@ -2809,53 +2837,48 @@ for /f "tokens=*" %%r in ("!wait._increment!") do (
 exit /b 0
 
 
-:wait   milliseconds
-for %%t in (%=wait=% %~1) do for /l %%w in (0,!wait._increment!,%%t00000) do call
-exit /b 0
-
-
 :watchvar   [-i]  [-l]
 setlocal EnableDelayedExpansion EnableExtensions
-if not defined temp_path set "temp_path=!temp!"
-set "temp_path=!temp_path!\watchvar"
-if not exist "!temp_path!" md "!temp_path!"
 cd /d "!temp_path!"
-set "_filename=watchvar"
-for %%x in (txt hex) do (
-    if exist "!_filename!_old.%%x" del /f /q "!_filename!_old.%%x"
-    if exist "!_filename!_latest.%%x" ren "!_filename!_latest.%%x" "!_filename!_old.%%x"
+for %%d in ("watchvar") do (
+    if not exist "%%~d" md "%%~d"
+    cd /d "%%~d"
 )
-for %%f in (!temp_path!\!_filename!) do (
+for %%x in (txt hex) do (
+    if exist "old.%%x" del /f /q "old.%%x"
+    if exist "latest.%%x" ren "latest.%%x" "old.%%x"
+)
+(
     endlocal
-    set > "%%~ff_latest.txt"
+    set > "%cd%\latest.txt"
     setlocal EnableDelayedExpansion EnableExtensions
-    cd /d "%%~dpf"
-    set "_filename=%%~nf"
+    cd /d "%cd%"
 )
 for %%v in (_init_only  _list_names) do set "%%v="
 set parse_args.args= ^
-    "-i --initialize    :flag:_init_only=true" ^
-    "-l --list          :flag:_list_names=true"
+    ^ "-i --initialize  :flag:_init_only=true" ^
+    ^ "-l --list        :flag:_list_names=true"
 call :parse_args %*
 
 rem Convert to hex and format
-if exist "!_filename!_latest.tmp" del /f /q "!_filename!_latest.tmp"
-certutil -encodehex "!_filename!_latest.txt" "!_filename!_latest.tmp" > nul
-> "!_filename!_latest.hex" (
-    set "_hex="
-    for /f "usebackq delims=" %%o in ("!_filename!_latest.tmp") do (
-        set "_input=%%o"
-        set "_hex=!_hex! !_input:~5,48!"
-        if not "!_hex:~7680!" == "" call :watchvar.format_hex
+call :hexlify "latest.txt" "latest.tmp"
+> "latest.hex" (
+    for /f "usebackq tokens=*" %%o in ("latest.tmp") do (
+        set "_hex=%%o"
+        set "_hex=!_hex:3d=#_!"
+        set "_hex=!_hex: =!"
+        for /f "tokens=1* delims=#" %%a in ("!_hex!") do (
+            set "_hex=%%a 3d %%b"
+            set "_hex=!_hex:#=3d!"
+            set "_hex=!_hex:_=!"
+        )
+        echo=!_hex!
     )
-    call :watchvar.format_hex
-    echo=!_hex!
-    set "_hex="
 )
 
 rem Count variable
 set "_var_count=0"
-for /f "usebackq tokens=*" %%o in ("!_filename!_latest.hex") do set /a "_var_count+=1"
+for /f "usebackq tokens=*" %%o in ("latest.hex") do set /a "_var_count+=1"
 
 if defined _init_only (
     echo Initial variables: !_var_count!
@@ -2872,62 +2895,85 @@ set "_states=new deleted changed"
 
 rem Compare variables
 for %%s in (!_states!) do set "_%%s_count=0"
-call 2> "!_filename!_changes.hex"
-for /f "usebackq tokens=1-3 delims= " %%a in ("!_filename!_latest.hex") do (
-    set "_old_value="
-    for /f "usebackq tokens=1-3 delims= " %%x in ("!_filename!_old.hex") do if "%%a" == "%%x" set "_old_value=%%z"
-    if defined _old_value (
-        if not "%%c" == "!_old_value!" (
-            set /a "_changed_count+=1"
-            echo !_changed_hex!20 %%a 0D0A
+> "changes.hex" (
+    for /f "usebackq tokens=1-3 delims= " %%a in ("latest.hex") do (
+        set "_old_value="
+        for /f "usebackq tokens=1-3 delims= " %%x in ("old.hex") do if "%%a" == "%%x" set "_old_value=%%z"
+        if defined _old_value (
+            if not "%%c" == "!_old_value!" (
+                set /a "_changed_count+=1"
+                echo !_changed_hex!20 %%a 0D0A
+            )
+        ) else (
+            echo !_new_hex_!20 %%a 0D0A
+            set /a "_new_count+=1"
         )
-    ) else (
-        echo !_new_hex_!20 %%a 0D0A
-        set /a "_new_count+=1"
     )
-) >> "!_filename!_changes.hex"
-for /f "usebackq tokens=1 delims= " %%a in ("!_filename!_old.hex") do (
-    set "_value_found="
-    for /f "usebackq tokens=1 delims= " %%x in ("!_filename!_latest.hex") do if "%%a" == "%%x" set "_value_found=true"
-    if not defined _value_found (
-        echo !_deleted_hex!20 %%a 0D0A
-        set /a "_deleted_count+=1"
+    for /f "usebackq tokens=1 delims= " %%a in ("old.hex") do (
+        set "_value_found="
+        for /f "usebackq tokens=1 delims= " %%x in ("latest.hex") do if "%%a" == "%%x" set "_value_found=true"
+        if not defined _value_found (
+            echo !_deleted_hex!20 %%a 0D0A
+            set /a "_deleted_count+=1"
+        )
     )
-) >> "!_filename!_changes.hex"
-if exist "!_filename!_changes.txt" del /f /q "!_filename!_changes.txt"
-certutil -decodehex "!_filename!_changes.hex" "!_filename!_changes.txt" > nul
+)
+if exist "changes.txt" del /f /q "changes.txt"
+certutil -decodehex "changes.hex" "changes.txt" > nul
 
 if defined _list_names (
     echo Variables: !_var_count!
     for %%s in (!_states!) do if not "!_%%s_count!" == "0" (
          < nul set /p "=[!_%%s_sym!!_%%s_count!] "
-        for /f "usebackq tokens=1* delims= " %%a in ("!_filename!_changes.txt") do (
+        for /f "usebackq tokens=1* delims= " %%a in ("changes.txt") do (
             if "%%a" == "%%s" < nul set /p "=%%b "
         )
         echo=
     )
 ) else echo Variables: !_var_count! [+!_new_count!/~!_changed_count!/-!_deleted_count!]
 exit /b 0
-:watchvar.format_hex
-set "_hex= !_hex! $"
+
+
+:hexlify   <source_file>  <destination_file>  [--eol=<hex>]
+setlocal EnableDelayedExpansion EnableExtensions
+set "_eol=0d 0a"
+set parse_args.args= ^
+    ^ "-e --eol     :var:_eol"
+call :parse_args %*
+set "_eol_len=2"
+if /i "!_eol!" == "0d 0a" set "_eol_len=5"
+
+set "raw_hex_file=raw_hex"
+pushd "!temp_path!" && (
+    for %%f in ("!raw_hex_file!") do set "raw_hex_file=%%~ff"
+    popd
+)
+if exist "!raw_hex_file!" del /f /q "!raw_hex_file!"
+certutil -encodehex "%~f1" "!raw_hex_file!" > nul || exit /b 1
+rem Group hex according to EOL
+> "%~f2" (
+    set "_hex="
+    for /f "usebackq tokens=1*" %%a in ("!raw_hex_file!") do (
+        set "_input=%%b"
+        set "_hex=!_hex! !_input:~0,48!"
+        if not "!_hex:~7680!" == "" call :hexlify.format
+    )
+    call :hexlify.format
+    echo=!_hex!
+    set "_hex="
+)
+exit /b 0
+
+:hexlify.format
+set "_hex=!_hex!$"
 set "_hex=!_hex:  = !"
-set "_hex=!_hex:0D 0A=EOL!"
-set "_hex=!_hex: 3D =#_!"
-set "_hex=!_hex: =!"
-set _hex=!_hex:EOL= 0D0A^
+set _hex=!_hex:%_eol%=%_eol%^
 %=REQURED=%
 !
-for /f "tokens=1* delims=#" %%a in ("!_hex!") do (
-    if "%%b" == "" (
-        set "_hex=%%a"
-    ) else (
-        set "_hex=%%a 3D %%b"
-        set "_hex=!_hex:#=3d!"
-        set "_hex=!_hex:_=!"
-    )
-    if /i "!_hex:~-4,4!" == "0D0A" echo !_hex!
+for /f "tokens=*" %%a in ("!_hex!") do (
+    set "_hex=%%a"
+    if /i "!_hex:~-%_eol_len%,%_eol_len%!" == "%_eol%" echo !_hex!
 )
-if /i "!_hex:~-4,4!" == "0D0A" set "_hex=$"
 if not "!_hex:~7680!" == "" (
     < nul set /p "=!_hex:~0,-3!"
     set "_hex=!_hex:~-3,3!"
@@ -2945,8 +2991,9 @@ for %%n in (1 2) do call :check_win_eol.alt%%n --check-exist 2> nul && (
         echo Converting EOL...
         type "%~f0" | more /t4 > "%~f0.tmp" && (
             move "%~f0.tmp" "%~f0" > nul && (
-                echo Convert EOL done. Script will restart.
-                start "" /i cmd /c "%~f0"
+                echo Convert EOL done
+                echo Script will exit. Press any key to continue...
+                pause > nul
                 exit 0
             )
         )
@@ -3047,31 +3094,33 @@ rem ======================== .entry_point() ========================
 :module.entry_point   [--module=<name>]  [args]
 @if /i "%1" == "--module" @(
     for /f "tokens=1* delims= " %%a in ("%*") do @call :scripts.%~2 %%b
-    exit /b
 ) else @goto __main__
-@exit /b
+@exit /b %errorlevel%
 
 rem ======================== .updater() ========================
 
 :module.updater   <check|upgrade>  script_path
 setlocal EnableDelayedExpansion
-set "_set_cmd="
-if /i "%1" == "check" set "_set_cmd=_show=true"
-if /i "%1" == "upgrade" set "_set_cmd=_upgrade=true"
-if defined _set_cmd (
-    set "!_set_cmd!"
-    shift /1
+for %%v in (_force_upgrade _upgrade _download_url) do set "%%v="
+set parse_args.args= ^
+    ^ "-f --force-upgrade   :flag:_force_upgrade=true" ^
+    ^ "-u --upgrade         :flag:_upgrade=true" ^
+    ^ "-d --download-url    :var:_download_url"
+call :parse_args %*
+if defined _force_upgrade set "_upgrade=true"
+cd /d "!temp_path!"
+set "_downloaded=!cd!\latest_version.bat"
+call :module.read_metadata _module. "%~1"  || ( 1>&2 echo error: failed to read module information & exit /b 10 )
+if not defined _download_url set "_download_url=!_module.download_url!"
+call %batchlib%:download_file "!_download_url!" "!_downloaded!" || ( 1>&2 echo error: download failed & exit /b 20 )
+call :module.is_module "!_downloaded!" || ( 1>&2 echo error: failed to read update information & exit /b 30 )
+call :module.read_metadata _downloaded. "!_downloaded!"  || ( 1>&2 echo error: failed to read update information & exit /b 31 )
+if not defined _downloaded.version ( 1>&2 echo error: failed to read update information & exit /b 32 )
+if /i not "!_downloaded.name!" == "!_module.name!" ( 1>&2 echo error: module name does not match & exit /b 40 )
+if not defined _force_upgrade (
+    call :module.version_compare "!_downloaded.version!" EQU "!_module.version!" && ( echo You are using the latest version & exit /b 99 )
+    call :module.version_compare "!_downloaded.version!" GTR "!_module.version!" || ( echo No updates available & exit /b 99 )
 )
-if not defined temp_path set "temp_path=!temp!"
-set "_downloaded=!temp_path!\latest_version.bat"
-call :module.read_metadata _module. "%~1"  || ( 1>&2 echo error: failed to read module information & exit /b 1 )
-call %batchlib%:download_file "!_module.download_url!" "!_downloaded!" || ( 1>&2 echo error: download failed & exit /b 1 )
-call :module.is_module "!_downloaded!" || ( 1>&2 echo error: failed to read update information & exit /b 2 )
-call :module.read_metadata _downloaded. "!_downloaded!"  || ( 1>&2 echo error: failed to read update information & exit /b 2 )
-if not defined _downloaded.version ( 1>&2 echo error: failed to read update information & exit /b 2 )
-if /i not "!_downloaded.name!" == "!_module.name!" ( 1>&2 echo warning: module name does not match )
-call :module.version_compare "!_downloaded.version!" EQU "!_module.version!" && ( echo You are using the latest version & exit /b 99 )
-call :module.version_compare "!_downloaded.version!" GTR "!_module.version!" || ( echo No updates available & exit /b 99 )
 if defined _show (
     call %batchlib%:diffdate update_age !date:~4! !_downloaded.release_date! 2> nul && (
         echo !_downloaded.description! !_downloaded.version! is now available ^(!update_age! days ago^)
@@ -3081,12 +3130,10 @@ if defined _show (
 if not defined _upgrade exit /b 0
 echo Updating script...
 move "!_downloaded!" "%~f1" > nul && (
-    echo Update success
+    echo Update successful
     if "%~f1" == "%~f0" (
-        echo=
-        echo Press any key to restart script...
+        echo Script will exit. Press any key to continue...
         pause > nul
-        start "" /i cmd /c "%~f0"
         exit 0
     )
 ) || ( 1>&2 echo error: update failed & exit /b 1 )
@@ -3098,7 +3145,7 @@ rem ======================== .read_metadata() ========================
 call :module.is_module "%~2" || exit /b 1
 for %%v in (
     name version
-    author license 
+    author license
     description release_date
     url download_url
 ) do set "%~1%%v="
@@ -3171,45 +3218,6 @@ for /l %%i in (1,1,5) do (
 endlocal
 exit /b 2
 
-rem ======================================== Shortcuts ========================================
-:shortcuts.__init__     Shortcuts to type less codes
-exit /b 0
-
-rem ================================ Input yes/no ================================
-
-:Input.yesno   variable_name  [--description=<description>]  [--yes=<value>]  [--no=<value>]
-setlocal EnableDelayedExpansion EnableExtensions
-set "_description=Y/N? "
-set "yes.value=Y"
-set "no.value=N"
-set parse_args.args= ^
-    "-d --description   :var:_description" ^
-    "-y --yes           :var:yes.value" ^
-    "-n --no            :var:no.value"
-call :parse_args %*
-:Input.yesno.loop
-echo=
-set /p "user_input=!_description!"
-if /i "!user_input!" == "Y" goto Input.yesno.convert
-if /i "!user_input!" == "N" goto Input.yesno.convert
-goto Input.yesno.loop
-:Input.yesno.convert
-set "_result="
-if /i "!user_input!" == "Y" set "_result=!yes.value!"
-if /i "!user_input!" == "N" set "_result=!no.value!"
-if defined _result (
-    for /f tokens^=*^ delims^=^ eol^= %%a in ("!_result!") do (
-        endlocal
-        set "%~1=%%a"
-        if /i "%user_input%" == "Y" exit /b 0
-    )
-) else (
-    endlocal
-    set "%~1="
-    if /i "%user_input%" == "Y" exit /b 0
-)
-exit /b 1
-
 rem ================================ parse_args() ================================
 
 :parse_args   %*
@@ -3223,6 +3231,7 @@ set "parse_args._value="
 (
     goto 2> nul
     for %%n in (!parse_args.shift!) do shift /%%n
+    for %%v in (args shift) do set "parse_args.%%v="
     ( call )
 )
 exit /b 1
@@ -3549,3 +3558,5 @@ rem ======================================== End of Script =====================
 :EOF     May be needed if command extenstions are disabled
 rem Anything beyond this are not part of the code
 exit /b
+
+
