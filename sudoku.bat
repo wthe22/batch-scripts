@@ -1,3 +1,62 @@
+@rem UTF-8-BOM guard > nul 2> nul
+@for %%f in ("Sudoku 3.2.*bat") do @if exist "%%~ff" @if not "%%~ff" == "%~f0" @set "__future__=%%~ff"
+@goto __main__
+
+rem ======================================== Metadata ========================================
+
+:metadata   [prefix]
+set "%~1name=sudoku"
+set "%~1version=2.1.2"
+set "%~1author=wthe22"
+set "%~1license=The MIT License"
+set "%~1description=Sudoku"
+set "%~1release_date=09/09/2021"   :: MM/DD/YYYY
+set "%~1url=https://winscr.blogspot.com/2013/08/sudoku.html"
+set "%~1download_url=https://gist.githubusercontent.com/wthe22/5eb8acec50840b7a29b197112e4f9dea/raw"
+exit /b 0
+
+
+:changelog.text.2.1.2 (2021-09-09)
+echo    Bug Fix
+echo    - Fix script cannot start at all (in version 2.1.1)
+echo    - Edit changelog for more accurate details
+echo    - Remove many unecessary codes (added from version 2.1.1)
+echo    - Use pattern '3.2.*bat' instead of '3.2*.bat'
+exit /b 0
+
+:changelog.text.2.1.1 (2019-08-17)
+echo    Forward-compatible update
+echo    - Script can now read the file format of 3.0 - 3.2.x, if you have version 3.2.x of this script, 
+echo      Just replace the file name at the second line with your file name
+echo    - If you don't have it, this script will just behave almost exactly the same as version 2.1
+exit /b 0
+
+:changelog.text.2.1 (2015-10-10)
+echo    - Added support for 4x4 and 6x6 sudoku (with minor display problems)
+echo    - Few menu redesigns
+echo    - Improve bruteforce speed (2-3x faster)
+exit /b 0
+
+:changelog.text.2.0 (2014)
+echo    - Merged all menus (Play, Import, View, Solve) to one file
+echo    - Major rework in code
+echo    - Redesigned some menus
+echo    - Bruteforce solver uses bruteforce and solve method (took less than 5 mins to solve Arto Inkala)
+echo    - Added solution count feature
+echo    - Can now generate Sudoku (easy and random difficulty only)
+exit /b 0
+
+:changelog.text.1.0 (2013-08-23)
+echo    - Initial version
+echo    - Each menu is written in seperate script
+echo    - Bruteforce solver uses pure bruteforce method (took 1h 30min to solve Arto Inkala)
+exit /b 0
+
+rem ======================================== Main  ========================================
+
+:__main__
+@rem Scripts below are from version of 2.1 with slight modification
+
 
 
 @goto scriptStart
@@ -31,7 +90,7 @@ set "sudokuBlockHeight=3"
 
 set "solutionCountMax=20"
 
-set "pathData=BatchScript_Data\Sudoku\"
+set "pathData=Data\Sudoku\"
 
 set "userInput=?"
 
@@ -40,8 +99,8 @@ title Sudoku
 cls
 call :splashScreen
 
-set "pathPuzzles=%pathData%%sudokuBlockWidth%x%sudokuBlockHeight%\Puzzles\"
-set   "pathSaves=%pathData%%sudokuBlockWidth%x%sudokuBlockHeight%\Saves\"
+set "pathPuzzles=%pathData%\Puzzles\"
+set   "pathSaves=%pathData%\Saves\"
 
 for %%p in (
     pathPuzzles
@@ -879,7 +938,15 @@ goto :EOF
 
 rem ===================================== Menu =====================================
 
-:selectSudoku [validcheck]
+rem from __future__
+:selectSudoku   [Y]
+if not defined __future__ goto selectSudoku.__past__
+if /i "%1" == "Y" (
+    call :__future__.v3.2 :select_sudoku --validate
+) else call :__future__.v3.2 :select_sudoku 
+goto :EOF
+
+:selectSudoku.__past__ [validcheck]
 set "selectedName="
 set "selectInput=0"
 set "userInput=0"
@@ -1942,3 +2009,79 @@ echo Invalid choice
 pause
 goto list_Default2x2
 
+rem ======================================== From Future ========================================
+:__future__.__init__     Functions from future (version 3.2.x)
+
+
+:__future__.v3.2
+setlocal EnableDelayedExpansion EnableExtensions
+set "data_path=!pathData!"
+set "temp_path=!temp!\BatchScript\Sudoku\"
+set "puzzle_path=!pathPuzzles!"
+set "save_path=!pathSaves!"
+if not exist "!temp_path!" md "!temp_path!"
+
+set "ALPHABET=_ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+set "SYMBOL=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+set "applied.size="
+set "Block_size.list=!sudokuBlockWidth!x!sudokuBlockHeight!"
+set "error_color=0C"
+
+@call "!__future__!" --module=lib :Display.evaluate_color
+@call "!__future__!" --module=lib %*
+
+set "userInput="
+if not defined selected.file set "userInput=0"
+
+call :endlocal ^
+    selected.name:sudokuName ^
+    selected.puzzle_array:sudokuPuzzleArray ^
+    selected.answer_array:sudokuAnswerArray ^
+    selected.solvings_array:sudokuSaveArray ^
+    userInput
+
+@exit /b
+
+rem ======================================== Batch Script Library ========================================
+:lib.__init__     Collection of Functions
+exit /b 0
+
+
+:endlocal   old_name:new_name  [old_name:new_name [...]]
+setlocal EnableDelayedExpansion
+set LF=^
+%=REQURED=%
+%=REQURED=%
+set "_content="
+for %%v in (%*) do for /f "tokens=1,2 delims=:" %%a in ("%%~v:%%~v") do (
+    set "_var=!%%a! "
+    call :endlocal.to_ede
+    set "_content=!_content!%%b=!_var:~0,-1!!LF!"
+)
+for /f "tokens=1* delims==" %%a in ("!_content!") do (
+    if defined _content (
+        goto 2> nul
+        endlocal
+    )
+    set "%%a=%%b"
+    if "!!" == "" (
+        set "%%a=!%%a:~1!"
+    ) else (
+        setlocal EnableDelayedExpansion
+        set "_var=!%%a!"
+        call :endlocal.to_dde
+        set "_var=!_var:~1!"
+        for /f "delims=" %%c in ("!_var!") do (
+            endlocal
+            set "%%a=%%c"
+        )
+    )
+)
+exit /b 0
+:endlocal.to_ede
+set "_var=^!!_var:^=^^^^!"
+set "_var=%_var:!=^^^!%"
+exit /b
+:endlocal.to_dde
+set "_var=%_var%"
+exit /b
