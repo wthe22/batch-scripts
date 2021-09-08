@@ -1,9 +1,36 @@
 @goto main
 
 
-rem Easy Compiler v1.3.1
-rem Updated on 2017-08-24
+rem Easy Compiler v1.4.2
+rem Updated on 2018-03-31
 rem Made by wthe22 - http://winscr.blogspot.com/
+
+
+rem ======================================== About Script ========================================
+
+:about_script
+cls
+title !SOFTWARE_NAME! !SOFTWARE_VERSION!
+echo Compiling source code made easy
+echo You don't need to type something like this anymore:
+echo=
+echo    C       gcc    "helloWorld.c"    -o "helloWorld.exe" 
+echo    Java    javac  "helloWorld.java"
+echo=
+echo Just input the file name / drag and drop the file
+echo Then this script will do the rest
+echo=
+echo=
+echo                     Made by wthe22
+echo                Updated on !SOFTWARE_RELEASE_DATE!
+echo=
+echo  ^>^>   More scripts at http://winscr.blogspot.com/   ^<^<
+pause > nul
+goto :EOF
+
+rem ======================================== Entry Point ========================================
+:__ENTRY__     Entry Point
+@rem These kinds of labels serves as a bookmark
 
 
 :main
@@ -13,6 +40,7 @@ setlocal EnableDelayedExpansion EnableExtensions
 
 rem ======================================== Settings ========================================
 
+rem ? searchPath order sensitive
 rem Add this path to all language search path
 rem You can also include your own (portable) SDK path here, each seperated by a semicolon (;)
 set "lang_all_searchPath="
@@ -26,52 +54,48 @@ rem You can add / edit existing SDK configuration at the end of this file
 
 rem ======================================== Script Setup ========================================
 
-set "scriptVersion=1.3.1"
-set "releaseDate=08/24/2017"
+set "SOFTWARE_NAME=Easy Compiler"
+set "SOFTWARE_VERSION=1.4.2"
+set "SOFTWARE_RELEASE_DATE=03/31/2018"
+
+title !SOFTWARE_NAME! !SOFTWARE_VERSION!
 
 cd /d "%~dp0"
 call :getScreenSize
 set /a "screenWidth-=1"
+set "border_line="
+for /l %%n in (1,1,!screenWidth!) do set "border_line=!border_line!="
 
 call :capchar LF
+set NL=^^^%LF%%LF%^%LF%%LF%
 
 rem Spaces!
-set "spaces=               "
-
-set "setupIsDone="
-title Easy Compiler !scriptVersion!
-cls
+set "spaces="
+for /l %%n in (1,1,30) do set "spaces=!spaces! "
 
 rem Initialize variables
 set "lastUsed_action="
-set "lang_all_name=All"
+set "setup_done="
 
+cls
 echo Reading SDK configurations...
-call :parseConfig
+call :Config.parse
 
 if not "%~1" == "" (
-    set "selected_file=%~1"
-    goto dragAndDropInput
+    set ^"input_files=%*^"
+    call :debug_file.parse_type
+    cls
 )
 
 echo Finding all SDK files...
-call :findSDK
-set "setupIsDone=true"
-goto mainMenu
+call :SDK.find
+goto main_menu
 
+rem ======================================== Menu ========================================
+:__MENU__     Menu
 
-:continueSetup
-cls
-echo Finding all SDK files...
-call :findSDK
-set "setupIsDone=true"
-goto mainMenu
-
-rem ======================================== Main Menu ========================================
-
-:mainMenu
-if not defined setupIsDone goto continueSetup
-set "userInput=?"
+:main_menu
+set "user_input="
 cls
 echo 1. Compile / run file
 echo 2. Change SDK
@@ -82,513 +106,165 @@ echo A. About
 echo 0. Exit
 echo=
 echo What do you want to do?
-set /p "userInput="
+set /p "user_input="
 echo=
-if "!userInput!" == "0" exit
-if "!userInput!" == "1" goto inputFile
-if "!userInput!" == "2" goto viewAllSDK
-if "!userInput!" == "3" goto delFiles_menu
-if "!userInput!" == "4" goto repeatLastAction
-if /i "!userInput!" == "A" call :aboutScript
-goto mainMenu
+if "!user_input!" == "0" exit
+if "!user_input!" == "1" goto debug_file.input
+if "!user_input!" == "2" goto lang_sdk.select
+if "!user_input!" == "3" goto delete_files.select
+if "!user_input!" == "4" goto repeat_action
+if /i "!user_input!" == "A" call :about_script
+goto main_menu
 
 
-:repeatLastAction
-if "!lastUsed_action!" == "compile/run" goto compileAndRun_lastUsed
-if "!lastUsed_action!" == "delFiles" goto delFiles_lastUsed
-echo No action found
-pause
-goto mainMenu
-
-rem ======================================== About Script ========================================
-
-:aboutScript
-cls
-title Easy Compiler !scriptVersion!
-echo Compiling source code made easy
-echo You don't need to type something like this anymore:
-echo=
-echo    C       gcc    "helloWorld.c"    -o "helloWorld.exe" 
-echo    Java    javac  "helloWorld.java"
-echo=
-echo Just input the file name / drag and drop the file
-echo Then this script will do the rest
-echo=
-echo=
-echo                     Made by wthe22
-echo                Updated on !releaseDate!
-echo=
-echo  ^>^>   More scripts at http://winscr.blogspot.com/   ^<^<
-pause > nul
-goto :EOF
+:repeat_action
+if "!lastUsed_action!" == "compile/run" (
+    set ^"input_files=!lastUsed_input_files!^"
+    call :debug_file.parse_type
+    goto main_menu
+)
+if "!lastUsed_action!" == "delete_files" (
+    set "selected_ext=!lastUsed_delExt!"
+    goto delete_files.prompt
+)
+goto main_menu
 
 rem ======================================== Input File ========================================
 
-:inputFile
-cd /d "%~dp0"
-set "selected_file=?"
-cls
-dir /b /o:d "*" 2> nul
-echo=
-echo 0. Back
-echo=
-echo Input file address:
-set /p "selected_file="
-if "!selected_file!" == "0" goto mainMenu
-if exist "!selected_file!" goto compileAndRun
-echo.
-echo File not found
-echo Hint : You can drag and drop file to this script
-pause > nul
-goto inputFile
-
-
-:dragAndDropInput
-echo Determine file type...
-call :parseFile || goto dragAndDropInput_fileNotFound
-echo Finding !lang_%selected_lang%_name! SDK files...
-call :findSDK "!selected_lang!"
-goto compileAndRun
-
-
-:dragAndDropInput_fileNotFound
-echo ERROR: Input file not found
-pause
-goto continueSetup
-
-rem ======================================== Compile / Run File ========================================
-
-:compileAndRun_lastUsed
-set "selected_file=!lastUsed_file!"
-goto compileAndRun
-
-
-:compileAndRun
-call :parseFile
-if not "!lastUsed_action!" == "compile/run" (
-    set "lastUsed_file=!selected_file!"
-    set "lastUsed_action=compile/run"
-)
-if not defined selected_sdk goto compileAndRun_noSDK
-if /i "!selected_type!" == "Compiled" goto runFile
-if /i "!selected_type!" == "Related" goto compileAndRun_noAction
-if /i "!selected_type!" == "Source" goto compileFile
-echo=
-echo ERROR: Unknown file type
-pause
-exit
-
-
-:compileAndRun_noAction
-cls
-call :displayFileInfo
-echo=
-echo This type of file cannot be compiled or run
-pause
-if defined setupIsDone (
-    goto mainMenu
-) else goto continueSetup
-
-
-:compileAndRun_noSDK
-cls
-call :displayFileInfo
-echo=
-echo This script could not find SDK for this language
-echo Please add search path or manually set SDK location
-pause
-if defined setupIsDone (
-    goto mainMenu
-) else goto continueSetup
-
-
-:displayFileInfo
-echo File address   :
-echo !selected_file!
-echo=
-echo Language       : !lang_%selected_lang%_name!
-if "!selected_type!" == "Source"    echo Compiler       : !sdk_%selected_sdk%_name!
-if "!selected_type!" == "Compiled"  echo Interpreter    : !sdk_%selected_sdk%_name!
-goto :EOF
-
-
-:parseFile
-call :stripDQotes selected_file
-set "selected_lang="
-set "selected_type="
-if not exist "!selected_file!" exit /b 1
-
-for %%f in ("!selected_file!") do set "selected_file=%%~ff"
-
-set "selected_fileExt=_"
-for %%f in ("!selected_file!") do set "selected_fileExt=!selected_fileExt!%%~xf"
-set "selected_fileExt=!selected_fileExt:~2!"
-for %%x in (!selected_fileExt!) do for %%l in (!langList!) do for %%t in (Compiled Source Related) do (
-    if not defined selected_lang if not "!lang_%%l_ext%%t: %%x = !" == "!lang_%%l_ext%%t!" (
-        set "selected_lang=%%l"
-        set "selected_type=%%t"
-    )
-)
-if not defined selected_lang (
-    set "selected_lang=Unknown"
-    set "selected_type=Compiled"
-)
-if /i "!selected_type!" == "Source" set "selected_sdk=!lang_%selected_lang%_compilerSDK!"
-if /i "!selected_type!" == "Compiled" set "selected_sdk=!lang_%selected_lang%_interpreterSDK!"
-exit /b 0
-
-rem ======================================== Compile File ========================================
-
-:compileFile
-set "compileParameter="
-cls
-call :displayFileInfo
-echo=
-echo Input additional compile parameters:
-set /p "compileParameter="
-
-cls
-call :displayFileInfo
-echo=
-echo Compile parameters:
-echo=!compileParameter!
-echo=
-echo Press any key to compile...
-pause > nul
-echo=
-
-setlocal
-for %%c in ("!lang_%selected_lang%_compilerPath!") do set "path=%%~dpc;!path!"
-for %%f in ("!selected_file!") do cd /d "%%~dpf"
-call :expandPath "!lang_%selected_lang%_compilerPath!" compiler
-call :expandPath "!selected_file!" file
-if "!selected_sdk!" == "Custom" set "selected_lang="
-title Easy Compiler !scriptVersion! - Compiling...
-cls
-call :displayFileInfo
-echo=
-echo Additional compile parameters:
-echo=!compileParameter!
-echo=
-set "startTime=!time!"
-echo ===============================================================================
-call :!selected_sdk!_compile_!selected_lang!
-set "errorCode=!errorlevel!"
-echo=
-echo ===============================================================================
-call :difftime !time! !startTime!
-call :ftime !return!
-title Easy Compiler !scriptVersion!
-for %%f in ("!resultFile!") do (
-    endlocal
-    set "errorCode=%errorCode%"
-    set "resultFile=%%~ff"
-    set "timeTaken=%return%"
-)
-if not "!errorCode!" == "0" goto compile_error
-
-set "selected_file=!resultFile!"
-echo Compile done in !timeTaken!
-pause > nul
-echo=
-if defined setupIsDone (
-    goto compileAndRun
-) else goto dragAndDropInput
-
-:compile_error
-echo Compile error occured. See above for more details.
-echo.
-echo Time taken : !timeTaken!
-echo Exit code  : !errorCode!
-pause > nul
-goto mainMenu
-
-rem ======================================== Run File ========================================
-
-:runFile
-set "runParameter="
-cls
-call :displayFileInfo
-echo=
-echo Input run parameters:
-set /p "runParameter="
-
-cls
-call :displayFileInfo
-echo=
-echo Run parameters:
-echo=!runParameter!
-echo=
-echo Press any key to run...
-pause > nul
-echo=
-
-setlocal
-for %%c in ("!lang_%selected_lang%_interpreterPath!") do set "path=%%~dpc;!path!"
-for %%f in ("!selected_file!") do cd /d "%%~dpf"
-call :expandPath "!lang_%selected_lang%_interpreterPath!" interpreter
-call :expandPath "!selected_file!" file
-if "!selected_sdk!" == "Custom" set "selected_lang="
-title !selected_file!
-cls
-set "startTime=!time!"
-call :!selected_sdk!_run_!selected_lang!
-echo=
-echo ===============================================================================
-call :difftime !time! !startTime!
-call :ftime !return!
-title Easy Compiler !scriptVersion!
-echo Execution done in !return!
-echo Exit code  : !errorlevel!
-endlocal
-pause > nul
-if defined setupIsDone (
-    goto mainMenu
-) else goto continueSetup
-
 rem ======================================== Change SDK ========================================
 
-:viewAllSDK
-set "userInput=?"
+:lang_sdk.select
+set "user_input=?"
 cls
-call :getSDK list
+call :Lang.get_used_sdk list
 echo=
+echo R. Show Registered SDK
 echo 0. Back
 echo=
 echo Input the list number :
-set /p "userInput="
+set /p "user_input="
 echo=
-if "!userInput!" == "0" goto mainMenu
-call :getSDK !userInput!
-if defined selected_lang goto findSelectedSDK
-goto viewAllSDK
+if "!user_input!" == "0" goto main_menu
+if /i "!user_input!" == "R" call :lang_sdk.show_registered
+call :Lang.get_used_sdk !user_input!
+if defined selected_lang goto lang_sdk.input_path
+goto lang_sdk.select
 
 
-:getSDK
-set "selected_lang="
-set "selected_type="
-set "_listCount=0"
-if /i "%~1" == "list" echo   # ^| Language     ^| Type        ^| SDK Used     ^| Path
-for %%l in (!langList!) do for %%t in (Compiler Interpreter) do if defined lang_%%l_have_%%t (
-    set /a "_listCount+=1"
-    if /i "%~1" == "list" (
-        set "_display=   !_listCount!"
-        set "_display=!_display:~-3,3! ^| !lang_%%l_name!!spaces!"
-        set "_display=!_display:~0,18! ^| %%t!spaces!"
-        if defined lang_%%l_%%tSDK (
-            for %%s in (!lang_%%l_%%tSDK!) do set "_display=!_display:~0,32! ^| !sdk_%%s_shortName!!spaces!"
-            set "_display=!_display:~0,47! ^| !lang_%%l_%%tPath!"
-        ) else (
-            set "_display=!_display:~0,32! ^| *NOT FOUND*!spaces!"
-            set "_display=!_display:~0,47! ^| *NOT FOUND*"
-        )
-        if not "!_display:~%screenWidth%!" == "" (
-            set "_display=!_display:~0,%screenWidth%!
-            set "_display=!_display:~0,-3!..."
-        )
-        echo=!_display!
-    ) else if /i "%~1" == "!_listCount!" (
-        set "selected_lang=%%l"
-        set "selected_type=%%t"
-    )
-)
+:lang_sdk.show_registered
+cls
+call :Lang.get_reg_sdk
+pause
 goto :EOF
 
 
-:findSelectedSDK
-echo Finding SDK...
-set "foundSDKFiles="
-for %%s in (!lang_%selected_lang%_sdkAll!) do (
-    set "foundFiles="
-    if not "!sdk_%%s_%selected_type%_%selected_lang%!" == "-" (
-        call :findSDK_find %%s %selected_type% %selected_lang%
-        for /f "tokens=*" %%a in ("!foundFiles!") do set "foundSDKFiles=!foundSDKFiles!%%s@%%a!LF!"
-    )
-)
-goto selectSDK
-
-
-:selectSDK
-set "userInput=?"
+:lang_sdk.input_path
+set "user_input="
 cls
-echo All found !lang_%selected_lang%_name! !selected_type!s :
+if defined lang_%selected_lang%_%selected_type%_used (
+    echo Current SDK:
+    echo !lang_%selected_lang%_%selected_type%_path!
+    echo=
+    echo=
+)
+echo All found !lang_%selected_lang%_name! !selected_type!s:
 echo=
-call :getSelectedSDK list
+call :Lang.get_sdk_path !selected_lang! !selected_type! list
 echo=
 echo 0. Back
-echo.
-echo Input list number or a new file address:
-set /p "userInput="
 echo=
-if "!userInput!" == "0" goto viewAllSDK
-call :getSelectedSDK !userInput!
-if defined selected_file goto changeSDK
-call :stripDQotes userInput
-if not exist "!userInput!" (
+echo Input list number or a new file address:
+set /p "user_input="
+echo=
+if "!user_input!" == "0" goto lang_sdk.select
+call :Lang.get_sdk_path !selected_lang! !selected_type! !user_input!
+if defined selected_file goto lang_sdk.change
+call :strip_dquotes user_input
+if not exist "!user_input!" (
     echo File not found
     pause > nul
-    goto selectSDK
+    goto lang_sdk.input_path
 )
 set "selected_sdk=Custom"
-for %%f in ("!userInput!") do set "selected_file=%%~ff"
-goto changeSDK
+for %%f in ("!user_input!") do set "selected_file=%%~ff"
+goto lang_sdk.change
 
 
-:getSelectedSDK
-set "_listCount=0"
-set "selected_file="
-if /i "%~1" == "list" echo   # ^| Language     ^| Path
-for /f "tokens=* tokens=1* delims=@" %%s in ("!foundSDKFiles!") do (
-    set /a "_listCount+=1"
-    if /i "%~1" == "list" (
-        set "_display=   !_listCount!"
-        set "_display=!_display:~-3,3! ^| !sdk_%%s_shortName!!spaces!"
-        echo !_display:~0,18! ^| %%t
-    ) else if /i "%~1" == "!_listCount!" (
-        set "selected_sdk=%%s"
-        set "selected_file=%%t"
-    )
-)
-goto :EOF
-
-
-:changeSDK
-set "lang_!selected_lang!_!selected_type!SDK=!selected_sdk!"
-set "lang_!selected_lang!_!selected_type!Path=!selected_file!"
+:lang_sdk.change
+set "lang_!selected_lang!_!selected_type!_used=!selected_sdk!"
+set "lang_!selected_lang!_!selected_type!_path=!selected_file!"
 echo Change successful
 pause > nul
-goto viewAllSDK
-
-if defined lang_%%l_%%tSDK (
-for %%s in (!lang_%%l_%%tSDK!) do set "_display=!_display:~0,32! ^| !sdk_%%s_shortName!!spaces!"
-set "_display=!_display:~0,47! ^| !lang_%%l_%%tPath!"
+goto lang_sdk.select
 
 rem ======================================== Delete Compiled Files ========================================
 
-:delFiles_menu
-set "userInput=?"
+:delete_files.select
+set "user_input="
 cls
-call :getDelExt list
-echo.
+call :Ext.get_item Remove list
+echo=
 echo C. Custom
 echo 0. Back
-echo.
-echo Choose which compiled files to delete:
-set /p "userInput="
 echo=
-if "!userInput!" == "0" goto mainMenu
-if /i "!userInput!" == "C" goto delFiles_extIn
-call :getDelExt !userInput!
-if not defined selected_lang goto delFiles_menu
-set "delExt_list=!lang_%selected_lang%_extRemove!"
-goto delFiles_checkExt
+echo Choose which compiled files to delete:
+set /p "user_input="
+echo=
+if "!user_input!" == "0" goto main_menu
+call :Ext.get_item Remove !user_input!
+if /i "!user_input!" == "C" call :delete_files.input_ext || goto delete_files.select
+if defined selected_ext goto delete_files.prompt
+goto delete_files.select
 
 
-:getDelExt
-set "_listCount=0"
-set "selected_lang="
-for %%l in (all !langList!) do if not "!lang_%%l_extRemove: =!" == "" (
-    set /a "_listCount+=1"
-    if /i "%~1" == "list" (
-        set "_display=   !_listCount!"
-        set "_display=!_display:~-3,3!. !lang_%%l_name!!spaces!"
-        set "_display=!_display:~0,17!     !lang_%%l_extRemove!"
-        if not "!_display:~%screenWidth%!" == "" (
-            set "_display=!_display:~0,%screenWidth%!"
-            set "_display=!_display:~0,-3!..."
-        )
-        echo=!_display!
-    ) else if "%~1" == "!_listCount!" set "selected_lang=%%l"
-)
-goto :EOF
-
-
-:delFiles_extIn
+:delete_files.input_ext
 cls
 echo 0. Back
-echo.
-echo Seperate extensions by space ( )
-echo.
-echo Input file extensions to delete:
-set /p "delExt_list="
 echo=
-if "!delExt_list!" == "0" goto delFiles_menu
-goto delFiles_checkExt
+echo Seperate extensions by space
+echo=
+echo Input file extensions to delete:
+set /p "selected_ext="
+echo=
+if "!selected_ext!" == "0" exit /b 1
+exit /b 0
 
 
-:delFiles_lastUsed
-set "delExt_list=!lastUsed_delExt!"
-goto delFiles_checkExt
-
-
-:delFiles_checkExt
-set "_tempList=!delExt_list!"
-set "delExt_list= "
-for %%x in (!_tempList!) do set "delExt_list=!delExt_list: %%x = !%%x "
-set "_tempList="
-set "_extCount=0"
-for %%x in (!delExt_list!) do set /a "_extCount+=1"
-if "!_extCount!" == "0" goto delFiles_noExt
-set "delExt_source="
-for %%l in (!langList!) do (
-    set "_tempList="
-    for %%x in (!lang_%%l_extSource!) do if not "!delExt_list: %%x =!" == "!delExt_list!" set "_tempList=!_tempList! %%x"
-    if defined _tempList (
-        set "_display=!lang_%%l_name!!spaces!"
-        set "delExt_source=!delExt_source!!_display:~0,12! ^| !_tempList!!LF!"
-    )
-)
-goto delFiles_showExt
-
-
-:delFiles_noExt
-echo No extensions listed
-pause
-goto delFiles_menu
-
-
-:delFiles_showExt
+:delete_files.prompt
+call :Ext.check_contains Source selected_ext
 cd /d "%~dp0"
-set "userInput=?"
+set "user_input=?"
 cls
 echo Current directory:
 echo=!cd!
 echo=
 echo Extensions to delete:
-echo=!delExt_list!
+echo=!selected_ext!
 echo=
-if defined delExt_source (
+if defined ext_contains (
     echo Source code extensions:
-    echo !delExt_source!
+    echo !ext_contains!
     echo=
 )
 echo=
 echo Files will be deleted permanently (not to the recycle bin)
 echo=
-if not defined delExt_source goto delFiles_promptDel
 
-:delFiles_warnSrc
-set /p "userInput=Source code extensions found. Continue? Y/N? "
-if /i "!userInput!" == "Y" goto delFiles_promptDel
-if /i "!userInput!" == "N" goto delFiles_menu
-goto delFiles_warnSrc
+if defined ext_contains (
+    call :input_yesno user_input "Source code extensions found. Continue?"
+    if /i "!user_input!" == "N" goto delete_files.select
+)
+call :input_yesno user_input "Delete files permanently?"
+if /i "!user_input!" == "N" goto delete_files.select
 
-:delFiles_promptDel
-set /p "userInput=Delete files permanently? Y/N? "
-if /i "!userInput!" == "Y" goto delFiles_delete
-if /i "!userInput!" == "N" goto delFiles_menu
-goto delFiles_promptDel
-
-
-:delFiles_delete
-set "lastUsed_action=delFiles"
-set "lastUsed_delExt=!delExt_list!"
+set "lastUsed_action=delete_files"
+set "lastUsed_delExt=!selected_ext!"
 echo=
 echo Deleting files...
-echo.
+echo=
 set "delCount=0"
 set "failCount=0"
-for %%x in (!delExt_list!) do for %%f in ("*.%%x") do (
+for %%x in (!selected_ext!) do for %%f in ("*.%%x") do (
     del /f /q "%%~ff" && (
         set /a "delCount+=1"
         echo Deleted    %%~nxf
@@ -599,9 +275,111 @@ for %%x in (!delExt_list!) do for %%f in ("*.%%x") do (
 )
 echo Successfully deleted !delCount! files (!failCount! failed)
 pause > nul
-goto mainMenu
+goto main_menu
 
-rem ======================================== Parse Configuration ========================================
+rem ======================================== Compile / Run File ========================================
+
+:debug_file.input
+cd /d "%~dp0"
+set "input_files="
+cls
+dir /b /o:d "*" 2> nul
+echo=
+echo 0. Back
+echo=
+echo Input file address:
+set /p "input_files="
+echo=
+if "!input_files!" == "0" goto main_menu
+call :debug_file.parse_type && goto main_menu
+echo=
+pause
+goto debug_file.input
+
+
+:debug_file.parse_type
+set "lastUsed_input_files=!input_files!"
+set "lastUsed_action=compile/run"
+
+:debug_file.parse_again
+echo Determining file type...
+call :File.parse || exit /b 1
+
+if /i "!input_type!" == "Source" set "_tool=compiler"
+if /i "!input_type!" == "Compiled" set "_tool=interpreter"
+
+rem ? Initialize
+if /i not defined lang_%input_lang%_%_tool%_init (
+    echo Finding !lang_%input_lang%_name! SDK files...
+    call :SDK.find !input_lang!
+)
+if not defined lang_!input_lang!_!_tool!_used (
+    echo=
+    echo error 4: could not find !_tool! for !lang_%input_lang%_name!
+    echo          Please add search path or manually set SDK location
+    echo=
+    pause
+    exit /b 2
+)
+
+
+if /i "!input_type!" == "Compiled" call :debug_file.do run
+if /i "!input_type!" == "Related" (
+    echo error 31: this type of file cannot be compiled or run
+    exit /b 1
+)
+if /i "!input_type!" == "Source" (
+    call :debug_file.do compile
+    if "!error_code!" == "0" goto debug_file.parse_again
+)
+goto :EOF
+
+
+:debug_file.do   compile|run
+rem Input parameter
+set "additional_parameter="
+cls
+call :File.display_info
+echo=
+echo Input %~1 parameter:
+set /p "additional_parameter="
+
+rem Confirm action
+cls
+call :File.display_info
+echo=
+echo Additional parameter:
+echo=!additional_parameter!
+echo=
+echo Press any key to %~1...
+pause > nul
+echo=
+
+if /i "%~1" == "run" (
+    title !input_display!
+    cls
+)
+
+call :File.%~1
+set "input_files=!result_file!"
+set "result_file="
+
+title !SOFTWARE_NAME! !SOFTWARE_VERSION!
+if not "!error_code!" == "0" (
+    echo Compile error occured. See above for more details.
+    echo=
+)
+echo Time taken : !time_taken!
+echo Exit code  : !error_code!
+pause > nul
+echo=
+goto :EOF
+
+rem ======================================== Class ========================================
+:__CLASS__     Class Definition
+
+
+rem ======================================== Config ========================================
 
 rem Read SDK Configurations from file
 rem Rewrite SDK list for each language, sorted descending order according to preferred SDKs
@@ -610,48 +388,53 @@ rem List all extensions type for each language
 rem List all language extensions for each type
 rem List extensions to remove for each language
 
-:parseConfig
+:Config.parse
 rem Read SDK Configurations from file
-set "dataType="
-set "labelUsed="
+set "data_type="
+set "label_used="
 for %%t in (lang sdk) do set "%%tList="
 for /f "usebackq tokens=1* delims= " %%a in ("%~f0") do (
-    if /i "%%a" == "#end" set "dataType="
+    if /i "%%a" == "#end" set "data_type="
     
-    if /i "!dataType!" == "lang" set "lang_!labelUsed!_%%a=%%b"
-    if /i "!dataType!" == "sdk" for %%s in (!labelUsed!) do (
+    if /i "!data_type!" == "lang" (
+        if /i "%%a" == "require" (
+            for %%p in (%%b) do set "lang_!label_used!_require_%%p=True"
+        ) else set "lang_!label_used!_%%a=%%b"
+    )
+    if /i "!data_type!" == "sdk" for %%s in (!label_used!) do (
         set "isParsed="
         for %%t in (compiler interpreter) do if /i "%%a" == "%%t" (
             for /f "tokens=1* delims= " %%l in ("%%b") do (
                 set "sdk_%%s_%%t_%%l=%%m"
                 set "sdk_%%s_%%tList=!sdk_%%s_%%tList! %%l"
-                set "lang_%%l_sdkAll=!lang_%%l_sdkAll! %%s"
-                set "isParsed=true"
+                set "lang_%%l_sdkList=!lang_%%l_sdkList! %%s"
+                set "isParsed=True"
             )
         )
         if not defined isParsed set "sdk_%%s_%%a=%%b"
     )
     
     for %%t in (lang sdk) do if /i "%%a" == "#%%t" (
-        set "dataType=%%t"
-        set "labelUsed=%%b"
+        set "data_type=%%t"
+        set "label_used=%%b"
         set "sdk_%%t_canCompile="
         set "sdk_%%t_canRun="
         set "%%tList=!%%tList! %%b"
     )
 )
+set "lang_all_name=All"
 
 rem Rewrite SDK list for each language, sorted descending order according to preferred SDKs
 for %%l in (!langList!) do (
     set "_tempList= "
-    for %%s in (!lang_%%l_sdkAll!) do set "_tempList=!_tempList: %%s = !%%s "
-    set "lang_%%l_sdkAll=!_tempList!"
+    for %%s in (!lang_%%l_sdkList!) do set "_tempList=!_tempList: %%s = !%%s "
+    set "lang_%%l_sdkList=!_tempList!"
     set "_tempList= "
-    for %%d in (!lang_%%l_sdkPreferred!) do for %%s in (!lang_%%l_sdkAll!) do if "%%s" == "%%d" (
+    for %%d in (!lang_%%l_sdkPreferred!) do for %%s in (!lang_%%l_sdkList!) do if "%%s" == "%%d" (
         set "_tempList=!_tempList!%%s "
-        set "lang_%%l_sdkAll=!lang_%%l_sdkAll: %%s = !"
+        set "lang_%%l_sdkList=!lang_%%l_sdkList: %%s = !"
     )
-    set "lang_%%l_sdkAll=!_tempList!!lang_%%l_sdkAll:~1!
+    set "lang_%%l_sdkList=!_tempList!!lang_%%l_sdkList:~1!
 )
 
 rem Rewrite list of extensions
@@ -690,50 +473,123 @@ for %%x in (!lang_all_extSource!) do set "_ext=!_ext: %%x = !"
 set "lang_all_extRemove=!_ext!"
 goto :EOF
 
-rem ======================================== Find SDK ========================================
+rem ======================================== SDK ========================================
 
-:findSDK
-set "_findLang=!langList!"
-if not "%~1" == "" set "_findLang=%~1"
-set "existingDrives="
-for %%l in (A B C D E F G H I J K L M N O P Q R S T U V W X Y Z) do vol %%l: > nul 2> nul && set "existingDrives=!existingDrives! %%l"
-for %%l in (!_findLang!) do for %%t in (compiler interpreter) do (
-    set "lang_%%l_have_%%t="
-    set "lang_%%l_%%tPath="
-    for %%s in (!lang_%%l_sdkAll!) do if not defined lang_%%l_%%tPath if defined sdk_%%s_%%t_%%l (
-        set "lang_%%l_have_%%t=true"
-        if "!sdk_%%s_%%t_%%l!" == "-" (
-            set "lang_%%l_%%tSDK=%%s"
+:Lang.get_used_sdk
+set "selected_lang="
+set "selected_type="
+set "_listCount=0"
+if /i "%~1" == "list" (
+    echo   # ^| Language     ^| Type        ^| SDK Used     ^| Path
+    echo !border_line!
+)
+for %%l in (!langList!) do for %%t in (Compiler Interpreter) do if defined lang_%%l_require_%%t (
+    set /a "_listCount+=1"
+    if /i "%~1" == "list" (
+        set "_display=   !_listCount!"
+        set "_display=!_display:~-3,3! ^| !lang_%%l_name!!spaces!"
+        set "_display=!_display:~0,18! ^| %%t!spaces!"
+        if defined lang_%%l_%%t_used (
+            for %%s in (!lang_%%l_%%t_used!) do set "_display=!_display:~0,32! ^| !sdk_%%s_shortName!!spaces!"
+            set "_display=!_display:~0,47! ^| !lang_%%l_%%t_path!"
         ) else (
-            call :findSDK_find %%s %%t %%l
-            for /f "tokens=*" %%a in ("!foundFiles!") do set "lang_%%l_%%tPath=%%a"
-            if defined lang_%%l_%%tPath (
-                set "lang_%%l_%%tSDK=%%s"
-                echo [+] !sdk_%%s_name! %%t for !lang_%%l_name!
-            ) else echo [-] !sdk_%%s_name! %%t for !lang_%%l_name!
+            set "_display=!_display:~0,32! ^| *NOT FOUND*!spaces!"
+            set "_display=!_display:~0,47! ^| *NOT FOUND*"
         )
+        if not "!_display:~%screenWidth%!" == "" (
+            set "_display=!_display:~0,%screenWidth%!
+            set "_display=!_display:~0,-3!..."
+        )
+        echo=!_display!
+    ) else if /i "%~1" == "!_listCount!" (
+        set "selected_lang=%%l"
+        set "selected_type=%%t"
     )
 )
 goto :EOF
 
 
-:findSDK_find   sdk_label type lang
+:Lang.get_reg_sdk
+echo  Language     ^| Registered SDKs
+echo !border_line!
+for %%l in (!langList!) do (
+    set "_display=!lang_%%l_name!!spaces!"
+    set "_display= !_display:~0,12! | "
+    set "_display2= "
+    for %%s in (!lang_%%l_sdkList!) do set "_display2=!_display2!!sdk_%%s_shortName!, "
+    set "_display=!_display!!_display2:~1,-2!"
+    echo !_display!
+)
+echo=
+echo Search Path: !lang_all_searchPath:;=%NL%!
+echo=
+goto :EOF
+
+
+:Lang.get_sdk_path   lang type list|number
+set "_listCount=0"
+set "selected_file="
+if /i "%~3" == "list" (
+    set "all_found_files="
+    for %%s in (!lang_%~1_sdkList!) do (
+        call :SDK.get_file_list %%s %~2 %~1
+        for /f "tokens=*" %%a in ("!found_files!") do set "all_found_files=!all_found_files!%%s@%%a!LF!"
+    )
+    echo   # ^| SDK Name     ^| Path
+    echo !border_line!
+)    
+for /f "tokens=* tokens=1* delims=@" %%s in ("!all_found_files!") do (
+    set /a "_listCount+=1"
+    if /i "%~3" == "list" (
+        set "_display=   !_listCount!"
+        set "_display=!_display:~-3,3! ^| !sdk_%%s_shortName!!spaces!"
+        echo !_display:~0,18! ^| %%t
+    ) else if /i "%~3" == "!_listCount!" (
+        set "selected_sdk=%%s"
+        set "selected_file=%%t"
+    )
+)
+goto :EOF
+
+
+:SDK.find   [lang1 [lang2 ...]]
+set "_lang_to_find=!langList!"
+if not "%~1" == "" set "_lang_to_find=%*"
+for %%l in (!_lang_to_find!) do for %%t in (compiler interpreter) do if /i "!lang_%%l_require_%%t!" == "True" (
+    set "lang_%%l_%%t_init=True"
+    set "lang_%%l_%%t_used="
+    set "lang_%%l_%%t_path="
+    for %%s in (!lang_%%l_sdkList!) do if not defined lang_%%l_%%t_path if defined sdk_%%s_%%t_%%l (
+        call :SDK.get_file_list %%s %%t %%l
+        for /f "tokens=*" %%a in ("!found_files!") do set "lang_%%l_%%t_path=%%a"
+        if defined lang_%%l_%%t_path (
+            set "lang_%%l_%%t_used=%%s"
+            echo [+] !sdk_%%s_name! %%t for !lang_%%l_name!
+        ) else echo [-] !sdk_%%s_name! %%t for !lang_%%l_name!
+    )
+)
+rem For files that does not need SDK to run
+for %%l in (!_lang_to_find!) do (
+    if /i "!lang_%%l_require_defaultRun!" == "True" set "lang_%%l_interpreter_used=Default"
+)
+goto :EOF
+
+sss
+:SDK.get_file_list   sdk_label type lang
+rem Setup and format path
 set "_path1=!lang_all_searchPath!;!sdk_%~1_searchPath!"
 set "_path2=!sdk_%~1_rootFolder!\!sdk_%~1_%~2_%~3!"
 for /f "delims=" %%f in ("!sdk_%~1_%~2_%~3!") do set "_path2=!_path2!;%%~nxf"
-for %%v in (_path1 _path2) do set ^"%%v=!%%v:;=^
-%=REQURED=%
-!^"
+for %%p in (_path1 _path2) do set ^"%%p=!%%p:;=%NL%!^"
 
 rem Eliminate duplicate paths in _path1
 set "_temp="
 for /f "tokens=*" %%a in ("!_path1!") do (
-    set "_isListed="
-    for /f "tokens=*" %%b in ("!_temp!") do if "%%a" == "%%b" set "_isListed=Y"
-    if not defined _isListed set "_temp=!_temp!%%a!LF!"
+    set "_is_listed="
+    for /f "tokens=*" %%b in ("!_temp!") do if "%%a" == "%%b" set "_is_listed=Y"
+    if not defined _is_listed set "_temp=!_temp!%%a!LF!"
 )
 set "_path1=!_temp!"
-
 
 rem Find SDK
 set "_found="
@@ -743,28 +599,215 @@ for /f "tokens=*" %%a in ("!_path1!") do for /f "tokens=*" %%b in ("!_path2!") d
 )
 
 rem Eliminate duplicate SDK
-set "foundFiles="
+set "found_files="
 for /f "tokens=*" %%a in ("!_found!") do (
-    set "_isListed="
-    for /f "tokens=*" %%b in ("!foundFiles!") do if "%%a" == "%%b" set "_isListed=Y"
-    if not defined _isListed set "foundFiles=!foundFiles!%%a!LF!"
+    set "_is_listed="
+    for /f "tokens=*" %%b in ("!found_files!") do if "%%a" == "%%b" set "_is_listed=Y"
+    if not defined _is_listed set "found_files=!found_files!%%a!LF!"
+)
+goto :EOF
+
+
+:File.display_info
+echo File address:
+echo !input_display!
+echo=
+echo Language   : !lang_%input_lang%_name!
+if "!selected_type!" == "Source"    echo Compiler       : !sdk_%selected_sdk%_name!
+if "!selected_type!" == "Compiled"  echo Interpreter    : !sdk_%selected_sdk%_name!
+goto :EOF
+
+
+:File.parse
+rem Initialize
+set "input_display=!input_files!"
+set "input_count=0"
+for %%v in (input_files input_dir output_path) do set "%%v="
+
+rem Detect if input is folder
+call :expand_path _first !input_display!
+if /i "!_firstA:~0,1!" == "d" (
+    set input_display="!_firstF!\*"
+    set "output_path=!_firstF!"
+)
+
+rem Rewrite as full paths
+for %%f in (!input_display!) do if exist "%%~ff" (
+    set "input_files=!input_files! ^"%%~ff^""
+    set /a "input_count+=1"
+    if not defined input_dir set "input_dir=%%~dpf"
+    if not defined output_path set "output_path=!_firstDP!\%%~nf"
+) else (
+    echo error 1: File not found 1>&2
+    exit /b 1
+)
+if /i not "!_firstA:~0,1!" == "d" set ^"input_display=!input_files!^"
+
+rem Get extensions
+set "input_extensions= "
+for %%f in (!input_files!) do set "input_extensions=!input_extensions: %%~xf = !%%~xf "
+set "input_extensions=!input_extensions:.=!"
+rem Make sure each extension occur only once. Language detection may be affected
+
+rem Detect language
+set "input_lang= "
+set "_lang_count=0"
+for %%l in (!langList!) do (
+    set "_temp_ext=!input_extensions!"
+    for %%x in (!lang_%%l_extAll!) do set "_temp_ext=!_temp_ext: %%x = !"
+    if "!_temp_ext!" == " " (
+        set "input_lang=!input_lang! %%l"
+        set /a "_lang_count+=1"
+    )
+)
+set "input_lang=!input_lang:~2!"
+if "!_lang_count!" == "0" (
+    echo error 2: input language is either unknown or mixed 1>&2
+    exit /b 2
+)
+for /f "tokens=1 delims= " %%l in ("!input_lang!") do set "input_lang=%%l"
+
+rem Get input file type
+set "input_type= "
+set "_type_count=0"
+for %%t in (Compiled Source Related) do (
+    set "_temp_ext=!input_extensions!"
+    for %%x in (!lang_%input_lang%_ext%%t!) do set "input_extensions=!input_extensions: %%x = !"
+    if not "!input_extensions!" == "!_temp_ext!" (
+        set "input_type=!input_type! %%t"
+        set /a "_type_count+=1"
+    )
+)
+set "input_extensions="
+set "input_type=!input_type:~2!"
+if not "!_type_count!" == "1" (
+    echo error 3: mixed file types. usually source code and executable 1>&2
+    exit /b 3
+)
+if /i "!input_type!" == "Compiled" if not "!input_count!" == "1" (
+    echo error 11: too many files to run 1>&2
+    exit /b 11
+)
+if /i "!input_type!" == "Source" if not "!_lang_count!" == "1" (
+    echo error 21: input matches multiple programming language 1>&2
+    exit /b 21
+)
+exit /b 0
+
+
+:File.compile
+setlocal
+for %%c in ("!lang_%input_lang%_compiler_path!") do set "path=%%~dpc;!path!"
+cd /d "!input_dir!"
+call :expand_path compiler "!lang_%input_lang%_compiler_path!" 
+call :expand_multipath file !input_files!
+call :expand_path output "!output_path!"
+set "result_file="
+set "startTime=!time!"
+echo !border_line!
+if "!lang_%input_lang%_compiler_used!" == "Custom" (
+    call :Custom.compile
+) else call :!lang_%input_lang%_compiler_used!.compile.!input_lang!
+set "error_code=!errorlevel!"
+echo=
+echo !border_line!
+call :difftime !time! !startTime!
+call :ftime !return!
+for %%f in ("!result_file!") do (
+    endlocal
+    set "error_code=%error_code%"
+    set result_file="%%~ff"
+    set "time_taken=%return%"
+)
+goto :EOF
+
+
+:File.run
+setlocal
+for %%c in ("!lang_%input_lang%_interpreter_path!") do set "path=%%~dpc;!path!"
+cd /d "!input_dir!"
+call :expand_path interpreter "!lang_%input_lang%_interpreter_path!"
+call :expand_path file !input_files!
+set "startTime=!time!"
+
+if "!lang_%input_lang%_interpreter_used!" == "Custom" (
+    call :Custom.run
+) else call :!lang_%input_lang%_interpreter_used!.run.!input_lang!
+set "error_code=!errorlevel!"
+echo=
+echo !border_line!
+call :difftime !time! !startTime!
+call :ftime !return!
+for %%f in (0) do (
+    endlocal
+    set "error_code=%error_code%"
+    set "time_taken=%return%"
+)
+set "result_file="
+goto :EOF
+
+
+:Ext.get_item   type list|number
+set "_listCount=0"
+set "selected_lang="
+for %%l in (all !langList!) do if not "!lang_%%l_ext%~1: =!" == "" (
+    set /a "_listCount+=1"
+    if /i "%~2" == "list" (
+        set "_display=   !_listCount!"
+        set "_display=!_display:~-3,3!. !lang_%%l_name!!spaces!"
+        set "_display=!_display:~0,17!     !lang_%%l_ext%~1!"
+        if not "!_display:~%screenWidth%!" == "" (
+            set "_display=!_display:~0,%screenWidth%!"
+            set "_display=!_display:~0,-3!..."
+        )
+        echo=!_display!
+    ) else if "%~2" == "!_listCount!" set "selected_ext=!lang_%%l_ext%~1!"
+)
+goto :EOF
+
+
+:Ext.check_contains   type variable_name
+set "_temp_ext=!%~2!"
+set "%~2= "
+for %%x in (!_temp_ext!) do set "%~2=!%~2: %%x = !%%x "
+set "_ext_count=0"
+for %%x in (!%~2!) do set /a "_ext_count+=1"
+if "!_ext_count!" == "0" (
+    echo No extensions listed
+    pause
+    goto :EOF
+)
+set "ext_contains="
+for %%l in (!langList!) do (
+    set "_temp_ext="
+    for %%x in (!lang_%%l_ext%~1!) do if not "!%~2: %%x =!" == "!%~2!" set "_temp_ext=!_temp_ext! %%x"
+    if defined _temp_ext (
+        set "_display=!lang_%%l_name!!spaces!"
+        set "ext_contains=!ext_contains!!_display:~0,12! ^| !_temp_ext!!LF!"
+    )
 )
 goto :EOF
 
 rem ======================================== Script Functions ========================================
+:__FUNCTIONS__     Functions only used in this script
 
-:expandPath   file_path  [prefix]
-set "%~2D=%~d1"
-set "%~2A=%~a1"
-set "%~2T=%~t1"
-set "%~2Z=%~z1"
-set "%~2N=%~n1"
-set "%~2X=%~x1"
-set "%~2P=%~p1"
-set "%~2F=%~f1"
+:expand_multipath   prefix file_path1 [file_path2 ...]
+for %%a in (D P N X F DP NX) do set "%~1%%a="
+set "_continue="
+for %%f in (%*) do if defined _continue (
+    set ^"%~1Ds=!%~1Ds! "%%~df"^"
+    set ^"%~1Ps=!%~1Ps! "%%~pf"^"
+    set ^"%~1Ns=!%~1Ns! "%%~nf"^"
+    set ^"%~1Xs=!%~1Xs! "%%~xf"^"
+    set ^"%~1Fs=!%~1Fs! "%%~ff"^"
+    set ^"%~1DPs=!%~1DPs! "%%~dpf"^"
+    set ^"%~1NXs=!%~1NXs! "%%~nxf"^"
+) else set "_continue=True"
 exit /b
 
 rem ======================================== Functions ========================================
+:__FUNCTION_LIBRARY__     Collection of Functions
+
 
 :difftime   end_time [start_time] [/n]
 set "return=0"
@@ -789,10 +832,12 @@ set "return=!return:~0,-4!.!return:~-3,2!"
 exit /b
 
 
-:stripDQotes   variable_name
-set _tempvar="!%~1:~1,-1!"
-if "!%~1!" == "!_tempvar!" set "%~1=!%~1:~1,-1!"
-set "_tempvar="
+:strip_dquotes   variable_name
+if not "!%~1!" == "" (
+    set _tempvar="!%~1:~1,-1!"
+    if "!%~1!" == "!_tempvar!" set "%~1=!%~1:~1,-1!"
+    set "_tempvar="
+)
 exit /b
 
 
@@ -821,6 +866,20 @@ for /f "tokens=1* delims=\" %%a in ("!_findNext!") do if not "%%a" == "*:" (
     call :wcdir_loop
     popd
 )
+exit /b
+
+
+:expand_path   prefix file_path
+set "%~1D=%~d2"
+set "%~1A=%~a2"
+set "%~1T=%~t2"
+set "%~1Z=%~z2"
+set "%~1N=%~n2"
+set "%~1X=%~x2"
+set "%~1P=%~p2"
+set "%~1F=%~f2"
+set "%~1DP=%~dp2"
+set "%~1NX=%~nx2"
 exit /b
 
 
@@ -855,7 +914,19 @@ shift /1
 if "%~1" == "" exit /b 0
 goto capchar
 
+
+:input_yesno   variable_name  [description]
+echo=
+if "%~2" == "" (
+    set /p "%~1=%~1 Y/N? "
+) else set /p "%~1=%~2 Y/N? "
+if /i "!%~1!" == "Y" exit /b
+if /i "!%~1!" == "N" exit /b
+goto input_yesno
+
 rem ================================================== Language List ==================================================
+:__LANG_LIST__     Identify programming languages
+
 
 ================ Example ================
 .#lang          Specify beginning of list, fill this with label used in the script. Use this without the dot at front.
@@ -873,6 +944,7 @@ extCompiled     exe
 extRelated      obj
 extSource       
 sdkPreferred    
+require         defaultRun
 #end
 
 ================ C ================
@@ -882,6 +954,7 @@ extCompiled     exe
 extRelated      h
 extSource       c h
 sdkPreferred    MinGW
+require         compiler
 #end
 
 ================ C++ ================
@@ -891,6 +964,7 @@ extCompiled     exe
 extRelated      hpp h
 extSource       cpp hpp h
 sdkPreferred    MinGW
+require         compiler
 #end
 
 ================ Java ================
@@ -900,6 +974,7 @@ extCompiled     class jar
 extRelated      form
 extSource       java
 sdkPreferred    JDK
+require         compiler interpreter
 #end
 
 ================ Python ================
@@ -908,30 +983,53 @@ name            Python
 extCompiled     py
 extRelated      
 extSource       py
-sdkPreferred    Python
+sdkPreferred    Python3
+require         interpreter
 #end
 
 ================ Assembly ================
-.#lang           Assembly
+#lang           Assembly
 name            Assembly
 extCompiled     exe
 extRelated      
 extSource       asm
 sdkPreferred    
+require         compiler
 #end
 
 rem ================================================== SDK List ==================================================
+:__SDK_LIST__     Codes used to compile / run source codes
+
+
+========================= Example =========================
+.#sdk           Specify beginning of list, fill this with label used in the script. Use this without the dot at front.
+name            Name of the Software Development Kit
+shortName       Short name of SDK. Maximum 12 characters
+searchPath      Where to find the root folder
+rootFolder      Name of root folder
+
+compiler        lang1       bin\compiler1.exe
+compiler        lang2       bin\compiler2.exe
+interpreter     lang1       bin\interpreter1.exe
+#end
+
+::sdk_label.compile.lang2
+rem Your compile command here
+set "result_file=compile_result_file.exe"
+goto :EOF
+
+::sdk_label.run.lang1
+rem Your run command here
+goto :EOF
 
 ========================= Default =========================
 #sdk            Default
 name            Default
 shortName       Default
-
-interpreter     Unknown     -
 #end
 
-:Default_run_Unknown
-"!selected_file!" !runParameter!
+:Default.run.Unknown
+"!fileF!" !additional_parameter!
 goto :EOF
 
 ========================= User Defined =========================
@@ -940,12 +1038,35 @@ name            User Defined
 shortName       User Defined
 #end
 
-:Custom_compile_
-"!compilerN!!compilerX!" "!selected_file!" !runParameter!
+:Custom.compile
+"!compilerNX!" !fileFs! !additional_parameter!
 goto :EOF
 
-:Custom_run_
-"!interpreterN!!interpreterX!" "!selected_file!" !runParameter!
+:Custom.run
+"!interpreterNX!" "!fileF!" !additional_parameter!
+goto :EOF
+
+========================= MinGW =========================
+#sdk            MinGW
+name            MinGW
+shortName       MinGW
+searchPath      *:
+rootFolder      MinGW*
+
+compiler        C           bin\gcc.exe
+compiler        Cpp         bin\g++.exe
+#end
+
+
+:MinGW.compile.C
+gcc !fileNXs! -o "!outputDP!\!outputN!.exe" !additional_parameter!
+set "result_file=!outputDP!\!outputN!.exe"
+goto :EOF
+
+
+:MinGW.compile.Cpp
+g++ !fileNXs! -o "!outputDP!\!outputN!.exe" !additional_parameter! -std=c++14
+set "result_file=!outputDP!\!outputN!.exe"
 goto :EOF
 
 ========================= Cygwin =========================
@@ -960,56 +1081,16 @@ compiler        Cpp         bin\g++.exe
 interpreter     Python      bin\python*.exe
 #end
 
-:Cygwin_compile_C
-gcc "!fileN!!fileX!" -o "!fileN!.exe" !compileParameter!
-set "resultFile=!fileN!.exe"
+
+:Cygwin.compile.C
+gcc !fileNXs! -o "!outputDP!\!outputN!.exe" !additional_parameter!
+set "result_file=!outputDP!\!outputN!.exe"
 goto :EOF
 
-:Cygwin_compile_Cpp
-g++ "!fileN!!fileX!" -o "!fileN!.exe" !compileParameter!
-set "resultFile=!fileN!.exe"
-goto :EOF
 
-========================= MinGW =========================
-#sdk            MinGW
-name            MinGW
-shortName       MinGW
-searchPath      *:
-rootFolder      MinGW*
-
-compiler        C           bin\gcc.exe
-compiler        Cpp         bin\g++.exe
-#end
-
-:MinGW_compile_C
-gcc "!fileN!!fileX!" -o "!fileN!.exe" !compileParameter!
-set "resultFile=!fileN!.exe"
-goto :EOF
-
-:MinGW_compile_Cpp
-g++ "!fileN!!fileX!" -o "!fileN!.exe" !compileParameter!
-set "resultFile=!fileN!.exe"
-goto :EOF
-
-========================= Visual Studio (Old) =========================
-#sdk            VS_old
-name            Visual Studio (Old)
-shortName       VS (Old)
-searchPath      *:\Program Files*
-rootFolder      Microsoft Visual Studio *
-
-compiler        C           VC\vcvarsall.bat
-compiler        Cpp         VC\vcvarsall.bat
-#end
-
-:VS_old_compile_C
-call vcvarsall.bat x86
-cl "!fileN!!fileX!" /out:"!fileN!.exe"
-goto :EOF
-
-:VS_old_compile_Cpp
-call vcvarsall.bat x86
-cl /EHsc "!fileN!!fileX!" /out:"!fileN!.exe"
+:Cygwin.compile.Cpp
+g++ !fileNXs! -o "!outputDP!\!outputN!.exe" !additional_parameter! -std=c++14
+set "result_file=!outputDP!\!outputN!.exe"
 goto :EOF
 
 ========================= Visual Studio (Community) =========================
@@ -1023,20 +1104,51 @@ compiler        C           20*\Community\Common7\Tools\VsDevCmd.bat
 compiler        Cpp         20*\Community\Common7\Tools\VsDevCmd.bat
 #end
 
-:VS_com_compile_C
+
+:VS_com.compile.C
+set "VSCMD_START_DIR=!cd!"
 call VsDevCmd.bat
-cl "!fileN!!fileX!" /out:"!fileN!.exe"
+cl !fileNXs! /link /out:"!outputDP!\!outputN!.exe"
+set "result_file=!outputDP!\!outputN!.exe"
 goto :EOF
 
-:VS_com_compile_Cpp
+
+:VS_com.compile.Cpp
+set "VSCMD_START_DIR=!cd!"
 call VsDevCmd.bat
-cl /EHsc "!fileN!!fileX!" /out:"!fileN!.exe"
+cl /EHsc !fileNXs! /link /out:"!outputDP!\!outputN!.exe"
+set "result_file=!outputDP!\!outputN!.exe"
+goto :EOF
+
+========================= Visual Studio (Old) =========================
+#sdk            VS_old
+name            Visual Studio (Old)
+shortName       VS (Old)
+searchPath      *:\Program Files*
+rootFolder      Microsoft Visual Studio *
+
+compiler        C           VC\vcvarsall.bat
+compiler        Cpp         VC\vcvarsall.bat
+#end
+
+
+:VS_old.compile.C
+call vcvarsall.bat x86
+cl !fileNXs! /link /out:"!outputDP!\!outputN!.exe"
+set "result_file=!outputDP!\!outputN!.exe"
+goto :EOF
+
+
+:VS_old.compile.Cpp
+call vcvarsall.bat x86
+cl /EHsc !fileNXs! /link /out:"!outputDP!\!outputN!.exe"
+set "result_file=!outputDP!\!outputN!.exe"
 goto :EOF
 
 ========================= Java Development Kit =========================
 #sdk            JDK
 name            Java Development Kit
-shortName       Java JDK
+shortName       Oracle JDK
 searchPath      *:\Program Files*\Java
 rootFolder      jdk*
 
@@ -1044,13 +1156,16 @@ compiler        Java        bin\javac.exe
 interpreter     Java        bin\java.exe
 #end
 
-:JDK_compile_Java
-javac "!fileN!!fileX!"
+
+:JDK.compile.Java
+javac !fileNXs!
+set "result_file=!outputDP!\!outputN!.class"
 goto :EOF
 
-:JDK_run_Java
+
+:JDK.run.Java
 rem The run path is the package path [com.PackageName.ClassName]
-java "!fileN!" !runParameter!
+java "!fileN!" !additional_parameter!
 goto :EOF
 
 ========================= Python 2 =========================
@@ -1063,8 +1178,9 @@ rootFolder      Python2*
 interpreter     Python      python.exe
 #END
 
-:Python2_run_Python
-python "!fileN!!fileX!" !runParameter!
+
+:Python2.run.Python
+python "!fileNX!" !additional_parameter!
 goto :EOF
 
 ========================= Python 3 =========================
@@ -1077,8 +1193,9 @@ rootFolder      Python3*
 interpreter     Python      python.exe
 #END
 
-:Python3_run_Python
-python "!fileN!!fileX!" !runParameter!
+
+:Python3.run.Python
+python "!fileNX!" !additional_parameter!
 goto :EOF
 
 ========================= WinPython =========================
@@ -1091,8 +1208,9 @@ rootFolder      WinPython-*
 interpreter     Python      python-*\python.exe
 #END
 
-:WinPython_run_Python
-python "!fileN!!fileX!" !runParameter!
+
+:WinPython.run.Python
+python "!fileNX!" !additional_parameter!
 goto :EOF
 
 ========================= Go =========================
@@ -1105,9 +1223,11 @@ rootFolder      ECGo
 compiler        Assembly    GoAsm\Bin\GoLink.exe
 #END
 
-:Go_compile_Assembly
-GoAsm -fo "!fileN!.obj" "!fileN!!fileX!"
-GoLink  /console "!fileN!.obj" kernel32.dll
+
+:Go.compile.Assembly
+GoAsm -fo "!outputDP!\!outputN!.obj" !fileNXs!
+GoLink  /console "!outputDP!\!outputN!.obj" kernel32.dll
+set "result_file=!outputDP!\!outputN!.exe"
 goto :EOF
 
 rem ====================================================================================================
@@ -1116,5 +1236,4 @@ rem ============================================================================
 rem ================================================== Notes ==================================================
 
 
-rem Compile multiple files with Visual Studio
-cl /EHsc file1.cpp file2.cpp file3.cpp /link /out:program1.exe
+
