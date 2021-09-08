@@ -1,16 +1,204 @@
-@goto scriptStart
 
-rem Updated on 2016-08-03
 
-:errorUnexpected
+@goto main
+
+rem Sudoku v3.0 by wthe22
+rem Updated on 2016-08-19
+rem Visit http://winscr.blogspot.com/ for more scripts!
+
+:main
+@echo off
+prompt $s
+endlocal 
+setlocal EnableDelayedExpansion
+
+rem ======================================== Settings ========================================
+set "dataPath=%~dp0\Data\Sudoku\"
+
+set "defaultScreenWidth=80"
+set "defaultScreenHeight=25"
+
+set "gridStyle=ASCII" [ASCII or UTF8]
+set "useColor=true"  [TRUE or FALSE]
+
+rem See "COLOR /?" for more info
+set "defaultColor=07"
+set "puzzleColor=0F"
+set "solvingsColor=0A"
+set "newSolvedColor=3A"
+set "candidateColor=0D"
+set "errorColor=0C"
+
+set "solutionCountLimit=5"
+
+rem ======================================== One-time Setups ========================================
+
+set "scriptVersion=v3.0"
+
+title Sudoku !scriptVersion!
+mode !defaultScreenWidth!,!defaultScreenHeight!
+cls
+call :splashScreen
+
+if not exist "!dataPath!" md "!dataPath!"
+cd /d "!dataPath!"
+
+set "tempPath=!temp!\BatchScript\"
+set "puzzlePath=Puzzles\"
+set   "savePath=Saves\"
+for %%p in (
+    tempPath
+    puzzlePath
+    savePath
+) do if not exist "!%%p!" md "!%%p!"
+
+rem Capture backspace character
+for /f %%a in ('"prompt $h & echo on & for %%b in (1) do rem"') do (
+    set "BS=%%a %%a"
+)
+
+rem Capture Carriage Return character
+for /f %%a in ('copy /Z "%~dpf0" nul') do set "CR=%%a"
+
+rem Base for "SET /P" display because it cannot start with a white space
+set "base=_!BS!"
+
+rem Setup Clear Line
+set "clearLine="
+for /l %%n in (2,1,!defaultScreenWidth!) do set "clearLine=!clearLine! "
+set "clearLine=!BASE!!CR!!clearLine!!CR!"
+
+color !defaultColor!
+
+set "alphabets=.ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+set "currentGridStyle=?"
+set "screenWidth=!defaultScreenWidth!"
+set "screenHeight=!defaultScreenHeight!"
+set "stateCount=0"
+set "alwaysGenerate=false"
+
+set "blockWidth=0"
+set "blockHeight=0"
+set "sideLength=0"
+call :setupBlocks 0x0
+
+call :speedtest
+
+:mainMenu
+set "userInput=?"
+mode !defaultScreenWidth!,!defaultScreenHeight!
+title Sudoku !scriptVersion!
+cls
+echo 1. Play sudoku
+echo 2. Import sudoku
+echo 3. View sudoku
+echo 4. Solve sudoku
+echo 5. Generate sudoku
+echo=
+echo A. About script
+echo S. Settings
+echo 0. Exit
+echo=
+echo What do you want to do?
+set /p "userInput="
+if "!userInput!" == "0" goto cleanUp
+if "!userInput!" == "1" goto play_setup
+if "!userInput!" == "2" goto import_setup
+if "!userInput!" == "3" goto viewer_setup
+if "!userInput!" == "4" goto solver_setup
+if "!userInput!" == "5" goto generator_setup
+if /i "!userInput:~0,1!" == "A" goto aboutScript
+if /i "!userInput:~0,1!" == "S" goto settings_menu
+goto mainMenu
+
+
+:aboutScript
+cls
+call :splashScreen
+pause > nul
+goto mainMenu
+
+rem ======================================== Settings ========================================
+
+:settings_menu
+set "userInput=?"
+cls
+echo=
+echo 1. Grid style          !gridStyle!
+echo 2. Use Color           !useColor!
+echo=
+echo R. Restart script      A fresh start is always good
+echo 0. Back
+echo=
+echo What do you want to change?
+set /p "userInput="
+if "!userInput!" == "0" goto mainMenu
+if "!userInput!" == "1" goto settings_gridStyle
+if "!userInput!" == "2" call :toggleColor
+if /i "!userInput!" == "G" call :toggleGenerate
+if /i "!userInput!" == "D" goto settings_debugInfo
+if /i "!userInput!" == "R" goto main
+goto settings_menu
+
+
+:settings_gridStyle
+set "userInput=?"
+set "selectedStyle="
+cls
+echo Current grid style : !gridStyle!
+echo=
+echo 1. ASCII           Better GUI
+echo 2. UTF8            Display correctly in most computers
+echo=
+echo 0. Back
+echo=
+echo Input style number:
+set /p "userInput="
+if "!userInput!" == "0" goto settings_menu
+if "!userInput!" == "1" set "selectedStyle=ASCII"
+if "!userInput!" == "2" set "selectedStyle=UTF8"
+if not defined selectedStyle goto settings_gridStyle
+set "gridStyle=!selectedStyle!"
+goto settings_menu
+
+
+:settings_debugInfo
+call :countVariables
+cls
+echo Debug Informations
+echo=
+echo Variables          : !return!
+echo Loop Speed         : !loopSpeed!
+echo Always generate    : !alwaysGenerate!
+echo=
+pause
+goto settings_menu
+
+
+:toggleColor
+if "!useColor!" == "true" (
+    set "useColor=false"
+) else set "useColor=true"
+goto :EOF
+
+
+:toggleGenerate
+if "!alwaysGenerate!" == "true" (
+    set "alwaysGenerate=false"
+) else set "alwaysGenerate=true"
+goto :EOF
+
+
+:error_unexpected
 echo=
 echo An unexpected error happened.
 echo=
-echo Press any key to exit or continue with modifications.
+echo Press any key to exit or continue with modifications
 pause > nul
 exit
 
-:errorExpected
+
+:error_expected
 echo=
 echo The feature you used have not been completed yet...
 echo=
@@ -18,153 +206,1743 @@ echo Press any key to exit or continue with modifications.
 pause > nul
 exit
 
-:scriptStart
-@echo off
-cd /d "%~dp0"
-prompt $s
-setlocal EnableDelayedExpansion
 
-set "scriptVersion=v2.2"
+:cleanUp
+pushd "!tempPath!"
+del /f /q "*" > nul 2> nul
+popd
+exit
 
-set "dataPath=BatchScript_Data\Sudoku\"
+rem ======================================== Play Sudoku ========================================
 
-set "sudokuBlockWidth=3"
-set "sudokuBlockHeight=3"
-set "solutionCountMax=20"
+:play_setup
+call :selectSudoku /c
+if not defined selected_puzzleArray goto mainMenu
 
+call :matrix create selected_puzzle selected_puzzleArray
+call :matrix create selected_solvings selected_puzzleArray
+
+call :state reset selected_solvings
+call :action reset selected_solvings
+
+if defined selected_solvingsArray (
+    call :state save
+    set "state!stateCount!_array=!selected_solvingsArray!"
+)
+
+set "sideText="
+call :action updateLog
+
+set "startTime=!time!"
+
+:play_updateColor
+call :matrix set GUI_color !solvingsColor!
+call :matrix color selected_puzzle !puzzleColor!
+
+:play_sudoku
+set "sideText="
+call :action updateLog
+set "sideText=!sideText![Z] Undo\n[X] Exit\n[C] Check\n[T] Toggle Color\n"
+set "sideText=!sideText![S] Save\n[L] Load [!stateCount!]\n[H] Hint\n"
+call :parseSideText
 set "userInput=?"
 
-:sudokuSizeSetup
-title Sudoku !scriptVersion!
 cls
-call :splashScreen
+call :displaySudoku selected_solvings
+set /p "userInput=Input cell code   : "
+if /i "!userInput!" == "Z" call :action undo        & goto play_updateColor
+if /i "!userInput!" == "X" goto play_quit
+if /i "!userInput!" == "C" goto play_checkSolvings
+if /i "!userInput!" == "T" call :toggleColor
+if /i "!userInput!" == "S" call :state save
+if /i "!userInput!" == "L" call :state load         & goto play_updateColor
+if /i "!userInput!" == "H" call :play_hint
+call :checkCellcode !userInput!
+if defined cellPos goto play_fillCell
+goto play_sudoku
 
-set "puzzlePath=!dataPath!Puzzles\"
-set   "savePath=!dataPath!Saves\"
 
-for %%p in (
-    puzzlePath
-    savePath
-) do if not exist "!%%p!" md "!%%p!"
+:play_fillCell
+if not "!selected_puzzle_%cellPos%!" == " " goto play_warnPuzzleCell
+set "userInput=?"
+set /p "userInput=Input number      : "
+if /i "!userInput!" == "X" goto play_sudoku
+call :action mark !cellPos! !userInput!
+goto play_updateColor
 
-set /a sudokuSize=%sudokuBlockWidth% * %sudokuBlockHeight%
-set /a sudokuArea=%sudokuSize% * %sudokuSize%
 
-set "alphabetList=.ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+:play_warnPuzzleCell
+echo That cell is a part of the puzzle...
+pause > nul
+goto play_sudoku
 
-set "rowCode="
-set "colCode="
-for /l %%n in (1,1,%sudokuSize%) do  set "rowCode=!rowCode! !alphabetList:~%%n,1!"
-for /l %%n in (1,1,%sudokuSize%) do  set "colCode=!colCode! %%n"
-set "countRow=1"
-set "countCol=1"
-for /l %%n in (1,1,%sudokuSize%) do for %%r in (!countRow!) do for %%c in (!countCol!) do (
-    set "blockRow%%r=!blockRow%%r! !alphabetList:~%%n,1!"
-    set "blockCol%%c=!blockCol%%c! %%n"
-    set /a tempVar1=%%n %% %sudokuBlockHeight%
-    if "!tempVar1!" == "0" set /a countRow+=1
-    set /a tempVar1=%%n %% %sudokuBlockWidth%
-    if "!tempVar1!" == "0" set /a countCol+=1
+
+:play_checkSolvings
+call :matrix set GUI_color !solvingsColor!
+call :checkDuplicate selected_solvings
+call :matrix color selected_puzzle !puzzleColor!
+call :matrix count selected_solvings " "
+set "emptyCells=!return!"
+
+if "!emptyCells!" == "0" (
+    if "!duplicatesFound!" == "0" (
+        goto play_solved
+    ) else echo Oops^^! There is something wrong...
+) else (
+    if "!duplicatesFound!" == "0" (
+        echo Seems good, Continue solving^^!
+    ) else echo Oops^^! There is something wrong...
 )
-set "countRow="
-set "countCol="
-for /l %%n in (1,1,%sudokuSize%) do (
-    set /a tempVar1=%%n %% %sudokuBlockHeight%
-    if "!tempVar1!" == "0" set "tempVar1=%sudokuBlockHeight%"
-    for %%c in (!tempVar1!) do set "block%%nCol=!blockCol%%c!"
-    set /a tempVar1=%%n+%sudokuBlockHeight%-1
-    set /a tempVar1/=%sudokuBlockHeight%
-    for %%r in (!tempVar1!) do set "block%%nRow=!blockRow%%r!"
+pause > nul
+goto play_sudoku
+
+
+:play_hint
+call :matrix copy selected_solvings temp1
+call :solveSudoku temp1 /o
+if "!solveMethod!" == "Unsolvable" (
+    echo No hint available. Sudoku is too hard for solver
+) else echo Try looking for !solveMethod!
+pause > nul
+goto play_sudoku
+
+
+:play_solved
+call :difftime !time! !startTime!
+call :ftime !return!
+set "sideText=\nSolved in !return!"
+call :parseSideText
+call :matrix toArray selected_solvings lastUsed_answerArray
+
+cls
+call :displaySudoku selected_solvings
+echo Congratulations^^! You solved the puzzle.
+pause
+goto mainMenu
+
+
+:play_quit
+call :matrix toArray selected_solvings lastUsed_solvingsArray
+call :state reset
+echo Solvings saved to memory. You can load it later.
+rem ? Save to file?
+pause > nul
+goto mainMenu
+
+rem ================================================== Import Sudoku ==================================================
+
+:import_setup
+set "selected_puzzleArray="
+set "selected_answerArray="
+set "selected_solvingsArray="
+
+:import_sizeIn
+cls
+echo 0. Back
+echo=
+echo Block size from 2x2 (4x4) to 4x4 (16x16)
+echo=
+echo Input sudoku block size  :
+set /p "userInput="
+if "!userInput!" == "0" goto mainMenu
+call :checkBlockSize !userInput!
+if "!sizeIsValid!" == "false" goto import_sizeIn
+
+
+call :setupBlocks !userInput!
+call :setupGrid
+
+call :inputSudoku puzzle
+if "!userInput!" == "0" goto import_sizeIn
+call :inputSudoku answer
+if "!userInput!" == "0" goto import_sizeIn
+
+rem Input successful
+set "lastUsed_file=Imported"
+set "lastUsed_name=Imported !blockWidth!x!blockHeight!"
+set "lastUsed_size=!blockWidth!x!blockHeight!"
+cls
+call :save2File /p
+goto mainMenu
+
+
+:inputSudoku
+set "selected_%1Array="
+set "skippable=false"
+if "%1" == "answer" set "skippable=true"
+
+:inputMenu
+set "userInput=?"
+cls
+echo 1. One by one with GUI
+echo 2. Array form
+if /i "!skippable!" == "true" echo 3. Skip this step
+echo=
+echo 0. Back
+echo=
+echo Choose %1 input method :
+set /p "userInput="
+if "!userInput!" == "0" goto :EOF
+if "!userInput!" == "1" goto inputGUI_Setup
+if "!userInput!" == "2" goto inputArray
+if /i "!skippable!" == "true" if "!userInput!" == "3" goto :EOF
+goto inputMenu
+
+
+:inputGUI_Setup
+call :action reset selected_%1
+call :matrix set selected_%1 " "
+call :matrix set GUI_color !puzzleColor!
+set "cellPos=1-1"
+set "duplicatesFound=0"
+set "cellGivens=0"
+set "inputSymbols=0!symbolList!"
+call :inputGUI_updateText
+
+:inputGUI
+call :inputGUI_markCurrent %1
+call :parseSideText
+cls
+call :displaySudoku selected_%1
+call :inputGUI_restoreCurrent %1
+choice /c ZXHIJKLT0!symbolList! /n /m "Input number   : "
+set "userInput=!errorlevel!"
+if "!userInput!" == "1" call :action undo
+if "!userInput!" == "2" goto inputMenu
+if "!userInput!" == "3" goto inputGUI_check
+if "!userInput!" == "4" call :move up
+if "!userInput!" == "5" call :move left
+if "!userInput!" == "6" call :move down
+if "!userInput!" == "7" call :move right
+if "!userInput!" == "8" call :toggleColor
+if !userInput! LSS 9 goto inputGUI
+set /a "userInput=!errorlevel! - 9"
+set "userInput=!inputSymbols:~%userInput%,1!"
+call :action mark !cellPos! !userInput!
+call :matrix set GUI_color !puzzleColor!
+call :checkDuplicate selected_%1
+call :matrix count selected_%1 " "
+set /a "cellGivens=!totalCells! - !return!"
+call :inputGUI_updateText
+call :move next
+goto inputGUI
+
+
+:inputGUI_updateText
+set "sideText="
+set "sideText=!sideText!Duplicates  : !duplicatesFound!\n"
+set "sideText=!sideText!Givens      : !cellGivens!\n\n"
+set "sideText=!sideText![Z] Undo\n[X] Exit\n[H] Check / Done\n"
+set "sideText=!sideText![T] Toggle Color\n[0] Erase\n\nUse IJKL to move\n\n"
+set "sideText=!sideText!Characters:\n!symbolList!\n"
+goto :EOF
+
+
+:inputGUI_markCurrent
+set "cell_value=!selected_%1_%cellPos%!"
+set "cell_color=!GUI_color_%cellPos%!"
+set "GUI_color_!cellPos!=!solvingsColor!"
+set "selected_%1_!cellPos!=X"
+goto :EOF
+
+
+:inputGUI_restoreCurrent
+set "selected_%1_!cellPos!=!cell_value!"
+set "GUI_color_!cellPos!=!cell_color!"
+goto :EOF
+
+
+:inputGUI_check
+call :matrix toArray selected_%1 selected_%1Array
+if "!duplicatesFound!" == "0" (
+    if /i "%1" == "answer" (
+        if "!cellGivens!" == "!totalCells!" (
+            goto import_done
+        ) else echo There are still !return! empty cells...
+    ) else if !cellGivens! GEQ !minimumGivens! (
+        goto import_done
+    ) else echo Too few givens for a valid sudoku
+) else echo Duplicates found. Use color to see the duplicates.
+pause > nul
+goto inputGUI
+
+
+:inputArray
+set "userInput=?"
+cls
+echo 1. Input from left to right (A1 to A!sideLength!)
+echo 2. Go to first column of next line (Go to B1)
+echo 3. Repeat until done
+echo=
+echo Use dot, space, underscore, zero or 
+echo question mark to represent empty cell
+echo=
+echo Array example (2x2) :
+echo ...42....1..4..1
+echo=
+echo 0. Back
+echo=
+echo Input the !blockWidth!x!blockHeight! puzzle array : 
+set /p "userInput="
+if "!userInput!" == "0" goto inputMenu
+set "selected_%1Array=!userInput!"
+set "errorMsg="
+call :checkArray selected_puzzleArray
+if "!arrayIsValid!" == "true" goto inputArray_display
+echo=
+echo ERROR: !errorMsg!
+echo=
+pause
+goto inputArray
+
+
+:inputArray_display
+set "sideText="
+call :parseSideText
+call :matrix create selected_%1 selected_%1Array
+cls
+call :displaySudoku selected_%1
+call :matrix delete selected_%1
+if not defined errorMsg goto import_done
+echo ERROR: !errorMsg!
+pause > nul
+goto inputArray
+
+
+:import_done
+set "lastUsed_%1Array=!selected_%1Array!"
+echo Input successful
+pause > nul
+goto :EOF
+
+rem ================================================== View Sudoku ==================================================
+
+:viewer_setup
+call :selectSudoku
+if not defined selected_puzzleArray goto mainMenu
+
+call :matrix create selected_puzzle selected_puzzleArray
+if defined selected_answerArray call :matrix create selected_answer selected_answerArray
+if defined selected_solvingsArray call :matrix create selected_solvings selected_solvingsArray
+
+call :matrix set GUI_color !solvingsColor!
+call :matrix color selected_puzzle !puzzleColor!
+
+set "sideText="
+call :sudokuInfo selected_puzzle
+set "sideText=!sideText!\n[C] Copy array\n\n"
+set "sideText=!sideText!Press enter to exit\n"
+call :parseSideText
+
+:viewer_menu
+set "userInput=?"
+cls
+echo 1. Puzzle
+if defined selected_answerArray echo 2. Answer
+if defined selected_solvingsArray echo 3. Solvings
+echo=
+echo A. View all in array form
+echo 0. Back
+echo=
+echo Which one do you want to view?
+set /p "userInput="
+if "!userInput!" == "0" goto mainMenu
+if "!userInput!" == "1" call :viewMatrix selected_puzzle
+if "!userInput!" == "2" call :viewMatrix selected_answer
+if "!userInput!" == "3" call :viewMatrix selected_solvings
+if /i "!userInput!" == "A" call :viewArray
+goto viewer_menu
+
+
+:viewMatrix [Matix_Name]
+if not defined %1Array goto :EOF 
+set "userInput=?"
+cls
+call :displaySudoku %1
+set /p "userInput=> "
+if /i "!userInput!" == "C" (
+    set /p "=!%1Array: =0!" < nul | clip
+    echo Copied array to clipboard
+    pause > nul
 )
-set "allNumList="
-set "allNumSpaced="
-for /l %%n in (1,1,%sudokuSize%) do (
-    set "allNumList=!allNumList!%%n"
-    set "allNumSpaced=!allNumSpaced! %%n"
-    for %%r in (!block%%nRow!) do for %%c in (!block%%nCol!) do set "block%%r%%c=%%n"
-    set "eliminateRow%%n="
-    set "eliminateCol%%n="
-    set "blockRow%%n="
-    set "blockCol%%n="
+goto :EOF
+
+
+:viewArray
+cls
+echo Puzzle array:
+echo !selected_puzzleArray: =0!
+echo=
+if defined selected_answerArray(
+        echo Answer array:
+        echo !selected_answerArray: =0!
+        echo=
 )
-for /l %%t in (1,1,%sudokuBlockHeight%) do for /l %%b in (%%t,%sudokuBlockHeight%,%sudokuSize%) do  for /l %%r in (%%t,%sudokuBlockHeight%,%sudokuSize%) do (
-    if not "%%b" == "%%r" set "eliminateRow%%b=!eliminateRow%%b! !block%%rRow!"
+if defined selected_solvingsArray(
+        echo Solvings array:
+        echo !selected_solvingsArray: =0!
+        echo=
 )
-for /l %%t in (1,%sudokuBlockHeight%,%sudokuSize%) do (
-    set /a tempVar1=%%t+%sudokuBlockHeight%-1
-    for /l %%b in (%%t,1,!tempVar1!) do  for /l %%c in (%%t,1,!tempVar1!) do (
-        if not "%%b" == "%%c" set "eliminateCol%%b=!eliminateCol%%b! !block%%cCol!"
+pause
+goto :EOF
+
+rem ================================================== Solve Sudoku ==================================================
+
+:solver_setup
+call :selectSudoku /c
+if not defined selected_puzzleArray goto mainMenu
+
+call :matrix create selected_solvings selected_puzzleArray
+call :matrix set GUI_color !solvingsColor!
+call :matrix color selected_solvings !puzzleColor!
+
+set "sideText="
+call :sudokuInfo selected_solvings
+call :parseSideText
+
+if not defined selected_solvingsArray goto solver_showStepsIn
+
+
+rem Load saved solvings
+call :matrix create selected_solvings selected_solvingsArray
+call :matrix count selected_solvings " " 
+set /a "tempVar1= !totalCells! - !return! - !cellGivens!"
+set "sideText=!sideText!Solved  : !tempVar1!\n"
+call :parseSideText
+
+:solver_savesIn
+set "userInput=?"
+cls
+call :displaySudoku selected_solvings
+echo Solvings data found
+set /p "userInput=Do you want to load this solvings? Y/N?"
+if /i "!userInput!" == "Y" goto solver_showStepsIn
+if /i not "!userInput!" == "N" goto solver_savesIn
+
+call :matrix create selected_solvings selected_puzzleArray
+set "sideText="
+call :sudokuInfo selected_solvings
+call :parseSideText
+
+
+:solver_showStepsIn
+set "userInput=?"
+cls
+echo Show solvings steps? Y/N?
+set /p "userInput="
+if /i "!userInput!" == "Y" goto solver_showStepsSetup
+if /i "!userInput!" == "N" goto solver_startSolve
+goto solver_showStepsIn
+
+
+:solver_startSolve
+cls
+call :displaySudoku selected_solvings
+echo Press any key to start solving...
+pause > nul
+echo Solving sudoku...
+set "startTime=!time!"
+call :solveSudoku selected_solvings
+if not "!emptyCells!" == "0" goto solver_cannotSolve
+
+call :difftime !time! !startTime!
+call :ftime !return!
+set "timeTaken=!return!"
+call :matrix toArray selected_solvings lastUsed_answerArray
+cls
+call :displaySudoku selected_solvings
+echo Solve done in !timeTaken!
+pause > nul
+goto solver_quit
+
+
+:solver_showStepsSetup
+mode !showStep_width!,!showStep_height!
+set "sideText="
+call :parseSideText
+
+call :matrix set GUI_color !candidateColor!
+call :matrix color selected_solvings !puzzleColor!
+
+
+:solver_showSteps
+call :setupCandidates selected_solvings
+call :matrix copy candidateList candidateList_old
+call :solveSudoku selected_solvings /o
+
+rem Convert cell code and color cells
+set "solvedCells_converted="
+for %%c in (!solvedCells!) do for /f "tokens=1-2 delims=-" %%x in ("%%c") do (
+    set "solvedCells_converted=!solvedCells_converted! !alphabets:~%%x,1!%%y"
+    set "GUI_color_%%c=!newSolvedColor!"
+)
+
+cls
+call :displaySudoku selected_solvings /n
+echo=
+call :displayCandidates candidateList_old
+echo [!solveMethod!] !solvedCells_converted!
+pause > nul
+
+for %%c in (!solvedCells!) do set "GUI_color_%%c=!solvingsColor!"
+call :matrix delete candidateList_old
+
+if not "!solveMethod!" == "Unsolvable" (
+    if not "!emptyCells!" == "0" goto solver_showSteps
+) else goto solver_cannotSolve
+
+mode !screenWidth!,!screenHeight!
+call :matrix toArray selected_solvings lastUsed_answerArray
+cls
+call :displaySudoku selected_solvings
+echo Solve done
+pause > nul
+goto solver_quit
+
+
+:solver_cannotSolve
+call :matrix count selected_solvings " " 
+set /a "tempVar1= !totalCells! - !return! - !cellGivens!"
+set "sideText=!sideText!Solved  : !tempVar1!\n"
+call :parseSideText
+
+call :matrix toArray selected_solvings lastUsed_solvingsArray
+mode !screenWidth!,!screenHeight!
+
+:solver_bruteforcePrompt
+set "userInput=?"
+cls
+call :displaySudoku selected_solvings
+echo This sudoku is either too hard or it is invalid.
+set /p "userInput=Use bruteforce? Y/N? "
+if /i "!userInput!" == "Y" goto solver_solutionCountIn
+if /i "!userInput!" == "N" goto solver_quit
+goto solver_bruteforcePrompt
+
+
+:solver_solutionCountIn
+set "countSolutions="
+set /p "userInput=Count number of solutions? Y/N? "
+if /i "!userInput!" == "Y" set "countSolutions=true"
+if /i "!userInput!" == "N" set "countSolutions=false"
+if not defined countSolutions goto solver_solutionCountIn
+
+
+:solver_startBruteforce
+call :matrix create selected_solvings selected_puzzleArray
+cls
+call :displaySudoku selected_solvings
+call :matrix delete GUI_color
+echo Press any key to start solving...
+pause > nul
+
+set "startTime=!time!"
+
+if /i "!countSolutions!" == "true" (
+    call :bruteforceSudoku selected_solvings /sc
+) else call :bruteforceSudoku selected_solvings
+
+call :difftime !time! !startTime!
+call :ftime !return!
+set "timeTaken=!return!"
+
+set "lastUsed_answerArray=!solution1!"
+
+call :matrix create selected_puzzle selected_puzzleArray
+call :matrix set GUI_color !solvingsColor!
+call :matrix color selected_puzzle !puzzleColor!
+call :matrix delete selected_puzzle
+
+cls
+call :displaySudoku selected_solvings
+echo Done in !return! with !bruteforceCount! guesses
+if "!solutionCount!" == "!solutionCountLimit!" (
+    echo Found at least !solutionCount! solutions
+) else echo Found !solutionCount! solutions
+pause > nul
+goto solver_quit
+
+:solver_quit
+call :matrix delete selected_solvings
+call :matrix delete GUI_color
+rem ? Save to file?
+goto mainMenu
+
+rem ================================================== Generate Sudoku ==================================================
+
+:generator_setup
+
+:generator_sizeIn
+cls
+echo 0. Back
+echo=
+echo Block size from 2x2 (4x4) to 4x4 (16x16)
+echo=
+echo Input sudoku block size  :
+set /p "userInput="
+if "!userInput!" == "0" goto mainMenu
+call :checkBlockSize !userInput!
+if "!sizeIsValid!" == "false" goto generator_sizeIn
+
+call :setupBlocks !userInput!
+
+:generate_difficultyIn
+cls
+echo 1. Easy
+echo=
+echo R. Random
+echo C. Custom
+echo 0. Back
+echo=
+echo Input difficulty level:
+set /p "puzzleLvl="
+if "!puzzleLvl!" == "0" goto generator_sizeIn
+if /i "!puzzleLvl!" == "R" goto generateLvl
+if /i "!puzzleLvl!" == "C" goto error_expected
+if !puzzleLvl! GEQ 1 if !puzzleLvl! LEQ 1 goto generateLvl_setup
+goto generate_difficultyIn
+
+
+:generateCustom_menu
+cls
+echo 1. Givens      Minimum [40%+1 ~ 90%]
+echo=
+echo G. Generate
+echo 0. Back
+echo=
+echo What do you want to customize?
+set /p "userInput="
+if "!userInput!" == "0" goto generate_difficultyIn
+if "!userInput!" == "1" goto generateCustom_givens
+goto generateCustom_menu
+
+
+:generateLvl_setup
+set "estTime="
+if /i "!puzzleLvl!" == "R" goto generateRand
+goto generateLvl!puzzleLvl!
+goto error_unexpected
+
+
+:generateRand
+set "methodsUsed=bf"
+set "puzzleLvl=Random"
+if "!sideLength!" == "4"    set "estTime=160 240"
+if "!sideLength!" == "6"    set "estTime=776 1363"
+if "!sideLength!" == "9"    set "estTime=4513 16385"
+goto generate_setup
+
+:generateLvl1
+set "methodsUsed=2"
+set "puzzleLvl=Easy"
+if "!sideLength!" == "4"    set "estTime=98 145"
+if "!sideLength!" == "6"    set "estTime=478 636"
+if "!sideLength!" == "8"    set "estTime=1987 2643"
+if "!sideLength!" == "9"    set "estTime=3550 4724"
+if "!sideLength!" == "12"   set "estTime=21888 28992"
+if "!sideLength!" == "16"   set "estTime=132865 185773"
+goto generate_setup
+
+
+:generate_setup
+set "minTime=???"
+set "maxTime=???"
+for /f "tokens=1,2 delims= " %%a in ("!estTime!") do (
+    set /a "minTime=%%a * 1000 / !loopSpeed!"
+    call :ftime !minTime!
+    set "minTime=!return!"
+    
+    set /a "maxTime=%%b * 1000 / !loopSpeed!"
+    call :ftime !maxTime!
+    set "maxTime=!return!"
+)
+
+set "selected_name=!puzzleLvl! !blockWidth!x!blockHeight!"
+set "lastUsed_file=Generated"
+set "lastUsed_name=!selected_name!"
+set "lastUsed_size=!blockWidth!x!blockHeight!"
+
+
+:generate_reset
+set "lastUsed_puzzleArray="
+set "lastUsed_answerArray="
+set "lastUsed_solvingsArray="
+
+:generate_start
+cls
+echo Sudoku size        : !sideLength!x!sideLength! [!blockWidth!x!blockHeight!]
+echo Difficulty level   : !puzzleLvl!
+echo Estimated time     : !minTime! - !maxTime!
+echo=
+echo Press any key to start generating...
+if "!alwaysGenerate!" == "false" pause > nul
+
+echo Generating answer...
+set "startTime=!time!"
+call :generateAnswer selected_puzzle
+if "!solutionCount!" == "0" goto generate_badSeed
+
+set /p "=!clearLine!Swapping numbers..." < nul
+for /l %%n in (-4,1,!sideLength!) do (
+    set /a "tempVar1=!random! %% !sideLength!"
+    set /a "tempVar2=!random! %% !sideLength!"
+    for %%x in (!tempVar1!) do for %%y in (!tempVar2!) do (
+        call :matrix swap selected_puzzle !symbolList:~%%x,1! !symbolList:~%%y,1!
     )
 )
-rem Display setup
-set "boardDisplay1=   "
-for /l %%n in (1,1,%sudokuSize%) do set "boardDisplay1=!boardDisplay1! %%n  "
-set "tempVar1="
-set "tempVar2="
-for /l %%n in (1,1,%sudokuBlockWidth%) do (
-    set "tempVar1=!tempVar1!ฤฤฤล"
-    set "tempVar2=!tempVar2!ออออ"
+call :difftime !time! !startTime!
+call :ftime !return!
+echo !clearLine!Generate answer done in !return!
+
+call :matrix toArray selected_puzzle lastUsed_answerArray
+
+echo Generating puzzle...
+set "startTime2=!time!"
+
+call :randCellList selected_puzzle /f
+
+set "progressCount=0"
+for %%c in (!cellList!) do (
+    set /a "progressCount+=1"
+    title Sudoku !scriptVersion! - Generating puzzle... #!progressCount!/!totalCells!
+    
+    call :matrix copy selected_puzzle selected_solvings
+    set "selected_solvings_%%c= "
+    
+    if /i "!methodsUsed!" == "BF" (
+        call :bruteforceSudoku selected_solvings /c
+        if "!solutionCount!" == "1" set "selected_puzzle_%%c= "
+    ) else (
+        set /p "=!clearLine!Progress: !progressCount!/!totalCells!" < nul
+        call :solveSudoku selected_solvings !methodsUsed!
+        if "!emptyCells!" == "0" set "selected_puzzle_%%c= "
+    )
 )
-set "boardDisplay2="
-for /l %%n in (1,1,%sudokuBlockHeight%) do set "boardDisplay2=!boardDisplay2!!tempVar2:~0,-1!ห"
-set "boardDisplay2=%boardDisplay2:~0,-1%"
-set "boardDisplay4=  ฬ%boardDisplay2:ห=ฮ%น"
-set "boardDisplay5=  ศ%boardDisplay2:ห=ส%ผ"
-set "boardDisplay2=  ษ%boardDisplay2%ป"
-set "boardDisplay3=  บ"
-for /l %%n in (1,1,%sudokuBlockHeight%) do set "boardDisplay3=!boardDisplay3!!tempVar1:~0,-1!บ"
-set "boardDisplay3=!boardDisplay3:~0,-1!บ"
-set /a boardTextNum=3 + %sudokuSize% * 4
 
-set "clearLine="
-set "clearLine=!clearLine!                                                                               !clearLine!"
+call :difftime !time! !startTime2!
+call :ftime !return!
+echo !clearLine!Generate puzzle done in !return!
 
-rem MODE 95,40
+echo Doing some cleanup...
+title Sudoku !scriptVersion!
+call :matrix delete candidateList
+call :matrix delete selected_solvings
+call :matrix toArray selected_puzzle lastUsed_puzzleArray
 
-ping localhost -n 2 > nul 2> nul
+if "!alwaysGenerate!" == "true" goto generateMore
 
-:sudokuMenu
+call :difftime !time! !startTime!
+call :ftime !return!
+set "timeTaken=!return!"
+echo=
+echo Total time taken : !timeTaken!
+echo=
+pause 
+
+call :setupGrid
+call :matrix set GUI_color !puzzleColor!
+
+set "sideText="
+call :sudokuInfo selected_puzzle
+call :parseSideText
+
 cls
-title Sudoku !scriptVersion! - %sudokuSize%x%sudokuSize% [%sudokuBlockWidth%x%sudokuBlockHeight%]
-echo 1. Play sudoku
-echo 2. Input sudoku
-echo 3. View sudoku
-echo 4. Solve sudoku
-echo 5. Generate sudoku
-echo=
-echo A. About script
-echo C. Change sudoku size
-echo 0. Exit
-echo=
-echo What do you want to do?
-set /p "userInput="
-if "%userInput%" == "0" exit
-if "%userInput%" == "1" goto puzzleSetup
-if "%userInput%" == "2" goto inputSudoku
-if "%userInput%" == "3" goto viewSetup
-if "%userInput%" == "4" goto solveSetup
-if "%userInput%" == "5" goto generateSetup
-if /i "%userInput:~0,1%" == "A" goto aboutScript
-if /i "%userInput:~0,1%" == "C" goto sudokuSizeIn
-if /i "%userInput%" == "GS" goto genInfo
-echo=
-echo Invalid choice
-pause
-goto sudokuMenu
+call :displaySudoku selected_puzzle
+call :matrix delete selected_puzzle
+call :matrix delete GUI_color
+echo Total time taken : !timeTaken!
+call :save2File /p
+goto mainMenu
 
-rem ==================================== About =====================================
+:generate_badSeed
+echo Bad sudoku seed detected, repeating...
+ping localhost /n 3 > nul 2> nul
+goto generate_reset
 
-:aboutScript
+:generateMore
+call :save2File /p /q
+goto generate_reset
+
+rem ======================================== Solver ========================================
+
+:generateAnswer [Matix_Name] [Methods]
+set "bruteforceCount=0"
+set "testCount=0"
+set "solutionCount=0"
+set "useMethods=all"
+if not "%2" == "" set "useMethods=%2"
+set "useBruteforce=true"
+set "maxSolutionCount=1"
+set /a "bruteforceLimit= 2 * !totalCells!"
+set "tryVaue="
+
+call :matrix set %1 " "
+call :matrix set candidateList "!symbolList!"
+
+set /a "initGivens=!totalCells! * 15 / 100 + 1"
+call :randCellList %1 /e !initGivens!
+for %%c in (!cellList!) do for /f "tokens=1,2 delims=-" %%x in ("%%c") do (
+    set /a "testCount+=1"
+    set /p "=!clearLine!Initializing answer...   !testCount!/!initGivens!" < nul
+    
+    set "tempVar1=!candidateList_%%c: =!"
+    for /l %%n in (!sideLength!,-1,0) do if "!tempVar1:~%%n,1!" == "" set "tryValue=%%n"
+    set /a "tryValue=!random! %% !tryValue!"
+    for %%n in (!tryValue!) do set "tryValue=!tempVar1:~%%n,1!"
+    
+    for %%s in (!tryValue!) do (
+        for %%b in (!blockNum_%%x-%%y!) do for %%p in (!rowList%%x! !colList%%y! !blockList%%b!) do (
+            set "candidateList_%%p=!candidateList_%%p:%%s= !"
+        )
+        set "candidateList_%%c=!candidateMark_%%s!"
+    )
+    call :matrix toArray %1 testArray!testCount!
+    set "tryValue!testCount!=!tryValue!"
+    set "%1_%%c=!tryValue!"
+)
+set /p "=!clearLine!Preparing to bruteforce..." < nul
+goto solve_reset
+
+
+:bruteforceSudoku [Matix_Name] [/SC | /C]
+set "bruteforceCount=0"
+set "testCount=0"
+set "solutionCount=0"
+set "useMethods=all"
+set "checkOnly=false"
+set "useBruteforce=true"
+set "maxSolutionCount=1"
+set "bruteforceLimit=-1"
+set "tryVaue="
+if /i "%2" == "/SC" set "maxSolutionCount=!solutionCountLimit!"
+if /i "%2" == "/C"  set "maxSolutionCount=2"
+set /p "=!clearLine!Preparing to bruteforce..." < nul
+for /l %%n in (1,1,!solutionCountLimit!) do set "solution%%n="
+goto solve_reset
+
+
+:solveSudoku [Matix_Name] [Methods] [/O]
+set "useBruteforce=false"
+set "solveOnce=false"
+set "useMethods=all"
+if /i "%2" == "/O" (
+    set "solveOnce=true"
+) else if not "%2" == "" set "useMethods=%2"
+if /i "%3" == "/O" set "solveOnce=true"
+goto solve_reset
+
+
+:setupCandidates [Matix_Name]
+call :matrix set candidateList "!symbolList!"
+for /l %%i in (1,1,!sideLength!) do (
+    for /l %%j in (1,1,!sideLength!) do (
+        for %%n in (!%1_%%i-%%j!) do (
+            for %%b in (!blockNum_%%i-%%j!) do for %%c in (!rowList%%i! !colList%%j! !blockList%%b!) do (
+                set "candidateList_%%c=!candidateList_%%c:%%n= !"
+            )
+            set "candidateList_%%i-%%j=!candidateMark_%%n!"
+        )
+    )
+)
+goto :EOF
+
+
+:solve_reset
+rem Show candidates
+call :matrix set candidateList "!symbolList!"
+set "filledCells=0"
+for /l %%i in (1,1,!sideLength!) do (
+    for /l %%j in (1,1,!sideLength!) do (
+        for %%n in (!%1_%%i-%%j!) do (
+            for %%b in (!blockNum_%%i-%%j!) do for %%c in (!rowList%%i! !colList%%j! !blockList%%b!) do (
+                set "candidateList_%%c=!candidateList_%%c:%%n= !"
+            )
+            set "candidateList_%%i-%%j=!candidateMark_%%n!"
+            set /a "filledCells+=1"
+        )
+    )
+)
+set /a "emptyCells=!totalCells! - !filledCells!"
+set "solveError=false"
+set "solvedCells="
+set "prevEmptyCells=!emptyCells!"
+
+:solve_loop
+if not "!prevEmptyCells!" == "!emptyCells!" (
+    if "!solveOnce!" == "true" goto solve_done
+)
+set "prevEmptyCells=!emptyCells!"
+
+rem ? Change?
+set "solveMethod=Singles"
+
+for /l %%i in (1,1,!sideLength!) do (
+    for /l %%j in (1,1,!sideLength!) do (
+        if "!%1_%%i-%%j!" == " " (
+            set "tempVar1=!candidateList_%%i-%%j: =!"
+            if defined tempVar1 (
+                if "!tempVar1:~1!" == "" for %%s in (!tempVar1!) do (
+                    for %%b in (!blockNum_%%i-%%j!) do for %%c in (!rowList%%i! !colList%%j! !blockList%%b!) do (
+                        set "candidateList_%%c=!candidateList_%%c:%%s= !"
+                    )
+                    set "candidateList_%%i-%%j=!candidateMark_%%s!"
+                    set "%1_%%i-%%j=%%s"
+                    set /a "emptyCells-=1"
+                    if "!solveOnce!" == "true" set "solvedCells=!solvedCells! %%i-%%j"
+                )
+            ) else set "solveError=true"
+        )
+    )
+)
+
+if "!emptyCells!" == "0" goto solve_done
+if "!solveError!" == "true" goto solve_error
+if not "!prevEmptyCells!" == "!emptyCells!" goto solve_loop
+if !useMethods!0 LEQ 10 goto solve_tooHard
+
+
+set "solveMethod=Hidden Singles"
+
+for /l %%i in (1,1,!sideLength!) do (
+    rem Row
+    set "symbolSearch=!symbolSpaced!"
+    for /l %%j in (1,1,!sideLength!) do (
+        for %%s in (!%1_%%i-%%j!) do set "symbolSearch=!symbolSearch: %%s= !"
+    )
+    for %%s in (!symbolSearch!) do set "cell_%%s= "
+    for /l %%j in (1,1,!sideLength!) do for %%s in (!symbolSearch!) do (
+        if not "!candidateList_%%i-%%j:%%s=!" == "!candidateList_%%i-%%j!" (
+            if defined cell_%%s if "!cell_%%s!" == " " (
+                set "cell_%%s=%%j"
+            ) else set "cell_%%s="
+        )
+    )
+    for %%s in (!symbolSearch!) do for %%n in (!cell_%%s!) do for %%b in (!blockNum_%%i-%%n!) do (
+        for %%c in (!rowList%%i! !colList%%n! !blockList%%b!) do (
+            set "candidateList_%%c=!candidateList_%%c:%%s= !"
+        )
+        set "candidateList_%%i-%%n=!candidateMark_%%s!"
+        set "%1_%%i-%%n=%%s"
+        set /a "emptyCells-=1"
+        if "!solveOnce!" == "true" set "solvedCells=!solvedCells! %%i-%%n"
+    )
+    
+    rem Column
+    set "symbolSearch=!symbolSpaced!"
+    for /l %%j in (1,1,!sideLength!) do (
+        for %%s in (!%1_%%j-%%i!) do set "symbolSearch=!symbolSearch: %%s= !"
+    )
+    for %%s in (!symbolSearch!) do set "cell_%%s= "
+    for /l %%j in (1,1,!sideLength!) do for %%s in (!symbolSearch!) do (
+        if not "!candidateList_%%j-%%i:%%s=!" == "!candidateList_%%j-%%i!" (
+            if defined cell_%%s if "!cell_%%s!" == " " (
+                set "cell_%%s=%%j"
+            ) else set "cell_%%s="
+        )
+    )
+    for %%s in (!symbolSearch!) do for %%n in (!cell_%%s!) do for %%b in (!blockNum_%%n-%%i!) do (
+        for %%c in (!rowList%%n! !colList%%i! !blockList%%b!) do (
+            set "candidateList_%%c=!candidateList_%%c:%%s= !"
+        )
+        set "candidateList_%%n-%%i=!candidateMark_%%s!"
+        set "%1_%%n-%%i=%%s"
+        set /a "emptyCells-=1"
+        if "!solveOnce!" == "true" set "solvedCells=!solvedCells! %%n-%%i"
+    )
+    
+    rem Block
+    set "symbolSearch=!symbolSpaced!"
+    for %%c in (!blockList%%i!) do (
+        for %%s in (!%1_%%c!) do set "symbolSearch=!symbolSearch: %%s= !"
+    )
+    for %%s in (!symbolSearch!) do set "cell_%%s= "
+    for %%c in (!blockList%%i!) do for %%s in (!symbolSearch!) do (
+        if not "!candidateList_%%c:%%s=!" == "!candidateList_%%c!" (
+            if defined cell_%%s if "!cell_%%s!" == " " (
+                set "cell_%%s=%%c"
+            ) else set "cell_%%s="
+        )
+    )
+    for %%s in (!symbolSearch!) do for %%n in (!cell_%%s!) do for /f "tokens=1,2 delims=-" %%x in ("%%n") do (
+        for %%c in (!rowList%%x! !colList%%y! !blockList%%i!) do (
+            set "candidateList_%%c=!candidateList_%%c:%%s= !"
+        )
+        set "candidateList_%%n=!candidateMark_%%s!"
+        set "%1_%%n=%%s"
+        set /a "emptyCells-=1"
+        if "!solveOnce!" == "true" set "solvedCells=!solvedCells! %%n"
+    )
+)
+for %%s in (!symbolSpaced!) do set "cell_%%s= "
+
+if "!emptyCells!" == "0" goto solve_done
+if not "!prevEmptyCells!" == "!emptyCells!" goto solve_loop
+if !useMethods!0 LEQ 20 goto solve_tooHard
+
+rem set "solveMethod=Naked Pair"
+
+rem naked pairs - remove surroundings
+rem 2 cells with the same candidate
+
+rem hidden pairs - identify self
+rem 2 candidate only found in 2 cells
+
+rem naked triples
+rem 3 cells with total of 3 candidates
+rem 3 candidates found only in 3 cells
+
+rem eliminate [list - exeption] [number]
+
+set "solveMethod=Unsolvable"
+
+:solve_tooHard
+if /i "!useBruteforce!" == "false" goto :EOF
+set "tryValue="
+goto bruteforce_findNext
+
+
+:solve_error
+if /i "!useBruteforce!" == "false" goto :EOF
+goto bruteforce_backtrack
+
+
+:solve_done
+if /i "!useBruteforce!" == "false" goto :EOF
+set /a "solutionCount+=1"
+call :matrix toArray %1 solution!solutionCount!
+if "!solutionCount!" == "!maxSolutionCount!" goto bruteforce_done
+goto bruteforce_backtrack
+
+
+:bruteforce_findNext
+if "!bruteforceCount!" == "!bruteforceLimit!" goto bruteforce_done
+set "cellPos=?-?"
+set "leastCandidateNum=!sideLength!"
+for /l %%i in (1,1,!sideLength!) do (
+    for /l %%j in (1,1,!sideLength!) do (
+        if "!%1_%%i-%%j!" == " " (
+            set "tempVar1=!candidateList_%%i-%%j: =!"
+            for /l %%n in (!sideLength_!,-1,0) do if "!tempVar1:~%%n,1!" == "" set "candidateNum=%%n"
+            if !candidateNum! LSS !leastCandidateNum! (
+                set "cellPos=%%i-%%j"
+                set "leastCandidateNum=!candidateNum!"
+            )
+        )
+    )
+)
+for /l %%n in (0,1,!sideLength_!) do (
+    if defined tryValue (
+        if "!tryValue!" == "!candidateList_%cellPos%:~%%n,1!" set "tryValue="
+    ) else if not "!candidateList_%cellPos%:~%%n,1!" == " " (
+        set "tryValue=!candidateList_%cellPos%:~%%n,1!"
+    )
+)
+if not defined tryValue goto bruteforce_backtrack
+
+set /a "testCount+=1"
+set /a "bruteforceCount+=1"
+call :matrix toArray %1 testArray!testCount!
+set "tryValue!testCount!=!tryValue!"
+set "%1_!cellPos!=!tryValue!"
+
+set /p "=!clearLine!Bruteforcing... #!bruteforceCount!:!testCount! | Solutions: !solutionCount!" < nul
+goto solve_reset
+
+
+:bruteforce_backtrack
+if "!testCount!" == "0" goto bruteforce_done
+call :matrix create %1 testArray!testCount!
+set "tryValue=!tryValue%testCount%!"
+set "testArray!testCount!="
+set "tryValue!testCount!="
+call :setupCandidates %1
+set /a "testCount-=1"
+goto bruteforce_findNext
+
+
+:bruteforce_done
+set /p "=!clearLine!" < nul
+
+rem Delete variables
+for /l %%n in (!testCount!,-1,1) do (
+    set "testArray%%n="
+    set "tryValue!testCount!="
+)
+if "!solutionCount!" == "0" goto :EOF
+call :matrix create %1 solution1
+goto :EOF
+
+rem ======================================== Cell, Array and Matrix ========================================
+
+:matrix
+if /i "%1" == "create" (
+    if "!%~3!" == "" goto :EOF
+    set "tempArray1=!%3!"
+)
+if /i "%1" == "toArray" set "%3="
+if /i "%1" == "count" set "return=0"
+for /l %%i in (1,1,!sideLength!) do (
+    for /l %%j in (1,1,!sideLength!) do (
+        if /i "%1" == "create" (
+            set "%2_%%i-%%j=!tempArray1:~0,1!"
+            set "tempArray1=!tempArray1:~1!"
+        )
+        if /i "%1" == "swap" for %%n in (!%2_%%i-%%j!) do (
+            if "%%n" == "%~3" set "%2_%%i-%%j=%~4"
+            if "%%n" == "%~4" set "%2_%%i-%%j=%~3"
+        )
+        if /i "%1" == "set"     set "%2_%%i-%%j=%~3"
+        if /i "%1" == "copy"    set "%3_%%i-%%j=!%2_%%i-%%j!"
+        if /i "%1" == "toArray" set "%3=!%3!!%2_%%i-%%j!"
+        if /i "%1" == "delete"  set "%2_%%i-%%j="
+        if /i "%1" == "count"   if     "!%2_%%i-%%j!" == "%~3"  set /a "return+=1"
+        if /i "%1" == "color"   if not "!%2_%%i-%%j!" == " "    set "GUI_color_%%i-%%j=%3"
+    )
+)
+goto :EOF
+rem CREATE [Matix_Name] [Source_Array]
+rem COPY [Source_Matix] [Destination_Matrix]
+rem SWAP [Matix_Name] [Number1] [Number2]
+rem COLOR [Puzzle_Matix]
+rem toArray [Source_Matix] [Destination_Array]
+rem DELETE [Matix_Name]
+rem COUNT [Matix_Name] [Symbol]
+rem COMPARE
+goto :EOF
+
+
+:checkArray [Array_Name]
+set "arrayIsValid=false"
+
+rem Convert all '0's to space
+set "%1=!%1:?= !"
+for %%c in ( _ 0 . ) do set "%1=!%1:%%c= !"
+
+set "tempVar1=!%1!@"
+set "errorMsg=Array is too short"
+if "!tempVar1:~%totalCells%!" == "" goto :EOF
+
+set "errorMsg=Array is too long"
+if not "!tempVar1:~%totalCells%!" == "@" goto :EOF
+
+set "errorMsg=Array contains invalid symbols"
+set "tempVar1=!tempVar1: =!"
+set "tempVar2=!tempVar1!"
+for %%a in (!symbolSpaced!) do set "tempVar1=!tempVar1:%%a=!"
+if not "!tempVar1!" == "@" goto :EOF
+
+set "arrayIsValid=true"
+
+set "errorMsg=Too few givens for a valid sudoku"
+if "!tempVar2:~%minimumGivens%,1!" == "" goto :EOF
+
+set "errorMsg="
+call :matrix create temp1 %1
+call :matrix set GUI_color !defaultColor!
+call :checkDuplicate temp1
+call :matrix delete temp1
+goto :EOF
+
+
+:checkDuplicate [Matix_Name]
+for /l %%n in (1,1,!sideLength!) do (
+    for /l %%x in (1,1,!sideLength!) do  for /l %%y in (%%x,1,!sideLength!) do if not "%%x" == "%%y" (
+        if not "!%1_%%n-%%x!" == " " if "!%1_%%n-%%x!" == "!%1_%%n-%%y!" (
+            set "GUI_color_%%n-%%x=!errorColor!"
+            set "GUI_color_%%n-%%y=!errorColor!"
+        )
+        if not "!%1_%%x-%%n!" == " " if "!%1_%%x-%%n!" == "!%1_%%y-%%n!" (
+            set "GUI_color_%%x-%%n=!errorColor!"
+            set "GUI_color_%%y-%%n=!errorColor!"
+        )
+    )
+    for %%a in (!blockList%%n!) do for %%b in (!blockList%%n!) do (
+        if "%%a" LSS "%%b" if not "!%1_%%a!" == " " (
+            if "!%1_%%a!" == "!%1_%%b!" (
+                set "GUI_color_%%a=!errorColor!"
+                set "GUI_color_%%b=!errorColor!"
+            )
+        )
+    )
+)
+call :matrix count GUI_color !errorColor!
+set "duplicatesFound=!return!"
+if not "!duplicatesFound!" == "0" set "errorMsg=Sudoku contains !duplicatesFound! duplicate numbers"
+goto :EOF
+
+
+:checkCellcode
+set "cellCode=%1"
+set "rowNumber="
+for /l %%n in (1,1,!sideLength!) do if not defined rowNumber (
+    if /i "!cellCode:~0,1!" == "!alphabets:~%%n,1!" (
+        set "rowNumber=%%n"
+        set /a "colNumber=!cellCode:~1! + 0" 2> nul
+    )
+    if /i "!cellCode:~-1,1!" == "!alphabets:~%%n,1!" (
+        set "rowNumber=%%n"
+        set /a "colNumber=!cellCode:~0,-1! + 0" 2> nul
+    )
+)
+set "cellPos="
+if !rowNumber! GEQ 1 if !rowNumber! LEQ !sideLength! (
+    if !colNumber! GEQ 1 if !colNumber! LEQ !sideLength! (
+        set "cellPos=!rowNumber!-!colNumber!"
+    )
+)
+goto :EOF
+
+
+:randCellList [Matix_Name] [/F (Filled) | /E (Empty)] [Number]
+set "cellList="
+set "tempList="
+set "listCount="
+for /l %%i in (1,1,!sideLength!) do (
+    for /l %%j in (1,1,!sideLength!) do (
+        set "tempVar1=     %%i-%%j"
+        if "!%1_%%i-%%j!" == " " (
+            if /i "%2" == "/e" (
+                set "tempList=!tempList!!tempVar1:~-5,5!"
+                set /a "listCount+=1"
+            )
+        ) else if /i "%2" == "/f" (
+            set "tempList=!tempList!!tempVar1:~-5,5!"
+            set /a "listCount+=1"
+        )
+    )
+)
+set "tempVar1=1"
+if not "%3" == "" set /a "tempVar1=!listCount! - %3 + 1"
+for /l %%l in (!listCount!,-1,!tempVar1!) do (
+    set /a "tempVar1=!random! %% %%l"
+    set /a "tempVar1*=5"
+    for %%n in (!tempVar1!) do (
+        set "tempVar1=!tempList:~%%n,5!"
+        set "cellList=!cellList! !tempVar1: =!"
+        set "tempList=!tempList:~%%n!!tempList:~0,%%n!"
+        set "tempList=!tempList:~5!"
+    )
+)
+goto :EOF
+
+
+:move [Up|Down|Left|Right|Next|Back]
+for /f "tokens=1,2 delims=-" %%a in ("!cellPos!") do (
+    set "cellRow=%%a"
+    set "cellCol=%%b"
+    if /i "%1" == "back" set /a "cellCol-=1"
+    if /i "%1" == "next" set /a "cellCol+=1"
+    if !cellCol! LSS 1              set /a "cellRow-=1"
+    if !cellCol! GTR !sideLength!   set /a "cellRow+=1"
+    if /i "%1" == "up"      set /a "cellRow-=1"
+    if /i "%1" == "down"    set /a "cellRow+=1"
+    if /i "%1" == "left"    set /a "cellCol-=1"
+    if /i "%1" == "right"   set /a "cellCol+=1"
+    if !cellRow! LSS 1              set "cellRow=!sideLength!"
+    if !cellRow! GTR !sideLength!   set "cellRow=1"
+    if !cellCol! LSS 1              set "cellCol=!sideLength!"
+    if !cellCol! GTR !sideLength!   set "cellCol=1"
+)
+set "cellPos=!cellRow!-!cellCol!"
+goto :EOF
+
+
+:checkBlockSize [Size (MxN)]
+set "sizeIsValid=false"
+for /f "tokens=1,2 delims=Xx" %%a in ("%1") do (
+    if %%a GEQ 2 if %%a LEQ 4 if %%b GEQ 2 if %%b LEQ 4 (
+        set "sizeIsValid=true"
+    )
+)
+goto :EOF
+
+
+:setupBlocks
+if "%1" == "!currentBlockSize!" goto :EOF
+
+rem Delete all previous blocks
+for /l %%n in (1,1,!sideLength!) do (
+    set "rowList%%n="
+    set "colList%%n="
+    set "blockList%%n="
+)
+call :matrix delete blockList
+for %%s in (!symbolSpaced!) do set "candidateMark_%%s="
+
+set "currentBlockSize=%1"
+for /f "tokens=1,2 delims=x" %%a in ("%1") do (
+    set "blockWidth=%%a"
+    set "blockHeight=%%b"
+)
+
+rem Calculate sudoku size
+set /a "sideLength=!blockWidth! * !blockHeight!"
+set /a "totalCells=!sideLength! * !sideLength!"
+set /a "minimumGivens=!totalCells! / 5 + 1"
+
+rem Special needs for loop starting with 0
+set /a "sideLength_=!sideLength! - 1"
+
+rem Define cell blocks
+set "blockNumber=1"
+for /l %%i in (1,1,!sideLength!) do (
+    for /l %%j in (1,1,!sideLength!) do (
+        set "rowList%%i=!rowList%%i! %%i-%%j"
+        set "colList%%j=!colList%%j! %%i-%%j"
+        set "blockNum_%%i-%%j=!blockNumber!"
+        for %%n in (!blockNumber!) do set "blockList%%n=!blockList%%n! %%i-%%j"
+        set /a "tempVar1=%%j %% !blockWidth!"
+        if "!tempVar1!" == "0" set /a "blockNumber+=1"
+    )
+    set /a "tempVar1=%%i %% !blockHeight!"
+    if not "!tempVar1!" == "0" set /a "blockNumber-=!blockHeight!"
+)
+
+rem Create symbol list
+set "symbolList=123456789ABCDEFG"
+set "symbolList=!symbolList:~0,%sideLength%!"
+set "symbolSpaced="
+for /l %%n in (0,1,!sideLength_!) do set "symbolSpaced=!symbolSpaced! !symbolList:~%%n,1!"
+
+rem Create single candidates for solver
+set "spaces="
+for %%s in (!symbolSpaced!) do (
+    set "candidateMark_%%s=!spaces!%%s"
+    set "spaces=!spaces! "
+)
+set "candidateMark_empty=!spaces!"
+for %%s in (!symbolSpaced!) do (
+    set "candidateMark_%%s=!candidateMark_%%s!!spaces!"
+    set "candidateMark_%%s=!candidateMark_%%s:~0,%sideLength%!"
+)
+goto :EOF
+
+rem ================================================== Action Log ==================================================
+
+:action
+if /i "%1" == "RESET" (
+    set "actionMatrix=%2"
+    set "actionCount=0"
+    set "actionLog=XXXX"
+)
+if /i "%1" == "MARK" ( 
+    for %%s in (0 !symbolSpaced!) do if /i "%3" == "%%s" (
+        set /a "actionCount+=1"
+        set "actionLog=%2-!%actionMatrix%_%2!-%3;!actionLog!"
+        if "%3" == "0" (
+            set "!actionMatrix!_%2= "
+        ) else set "!actionMatrix!_%2=%%s"
+    )
+)
+if /i "%1" == "UNDO" (
+    if "!actionCount!" == "0" goto :EOF
+    for /f "tokens=1* delims=;" %%k in ("!actionLog!") do (
+        for /f "tokens=1-4 delims=-" %%a in ("%%k") do (
+            set "!actionMatrix!_%%a-%%b=%%c"
+            set "actionLog=%%l"
+            set /a "actionCount-=1"
+        )
+    )
+)
+if /i "%1" == "updateLog" (
+    if !sideText_width! LSS 16 goto :EOF
+    set "sideText=!sideText!!log_topBorder!\n!log_title!\n!log_midLine!\n"
+    set "tempLog=!actionLog!"
+    set /a "tempVar1=!blockWidth! + !blockHeight!"
+    set /a "tempVar1=!tempVar1! * 3 / 4"
+    for /l %%n in (1,1,!tempVar1!) do (
+        if /i "!tempLog!" == "XXXX" (
+            set "sideText=!sideText!!vBorder!             !vBorder!\n"
+        ) else (
+            for /f "tokens=1* delims=;" %%k in ("!tempLog!") do (
+                for /f "tokens=1-4 delims=-" %%a in ("%%k") do (
+                    set "sideText=!sideText!!vBorder! !alphabets:~%%a,1!%%b | %%c -> %%d !vBorder!\n"
+                    set "tempLog=%%l"
+                )
+            )
+        )
+    )
+    set "sideText=!sideText!!log_btmBorder!\n"
+)
+goto :EOF
+rem RESET [Matix_Name]
+rem MARK [CellPosition] [Number]
+rem UNDO
+rem updateLog
+goto :EOF
+
+rem ======================================== Save / Load State ========================================
+
+:state
+if /i "%1" == "reset" (
+    for /l %%n in (!stateCount!,-1,1) do (
+        for %%v in (array actionLog actionCount) do set "state%%n_%%v="
+    )
+    set "stateMatrix=%2"
+    set "stateCount=0"
+)
+if /i "%1" == "save" (
+    set /a "stateCount+=1"
+    call :matrix toArray !stateMatrix! state!stateCount!_array
+    set "state!stateCount!_actionLog=!actionLog!"
+    set "state!stateCount!_actionCount=!actionCount!"
+)
+if /i "%1" == "load" (
+        if not "!stateCount!" == "0" (
+                call :matrix create !stateMatrix! state!stateCount!_array
+                set "actionLog=!state%stateCount%_actionLog!"
+                set "actionCount=!state%stateCount%_actionCount!"
+        for %%v in (array actionLog actionCount) do set "state!stateCount!_%%v="
+                set /a "stateCount-=1"
+        )
+)
+goto :EOF
+rem RESET [Matix_Name]
+rem SAVE
+rem LOAD
+goto :EOF
+
+rem ================================================== Select Sudoku ==================================================
+
+:selectSudoku [/c]
+set "selected_name="
+set "selected_size="
+set "selected_puzzleArray="
+set "selected_answerArray="
+set "selected_solvingsArray="
+set "selectedIsValid=false"
+set "listCount=0"
+pushd "!puzzlePath!"
+
+
+:selectFile
+set "selected_file="
+set "selectedNumber=?"
 cls
-call :splashScreen
+dir * /b /o:d /p 2> nul
+echo=
+echo T. Built-in sudoku (This file)
+if defined lastUsed_puzzleArray echo L. Last used / entered sudoku
+echo 0. Back
+echo=
+echo Select sudoku file :
+set /p "selected_file="
+echo=
+if "!selected_file!" == "0" goto select_cleanup
+if /i "!selected_file!" == "L" if defined lastUsed_puzzleArray goto selectLastUsed
+if /i "!selected_file!" == "T" set "selected_file=%~f0"
+if exist "!selected_file!" (
+    if exist "!selected_file:~1,-1!" set "selected_file=!selected_file:~1,-1!"
+) else goto selectFile_notFound
+
+call :getList "!selected_file!"
+if "!listCount!" == "0" goto selectFile_noSudoku
+
+call :selectList
+if "!selectedIsValid!" == "true" goto select_cleanup
+goto selectFile
+
+
+:selectFile_notFound
+echo File not found
 pause > nul
-goto sudokuMenu
+goto selectFile
+
+
+:selectFile_noSudoku
+echo No sudoku data found
+pause > nul
+goto selectFile
+
+
+:selectList
+set "selectedList=?"
+cls
+echo Sudoku File    : !selected_file!
+echo=
+for /l %%n in (1,1,!listCount!) do (
+    set "display=  %%n"
+    echo !display:~-2,2!. [!listSize%%n!] !listName%%n! [!listData%%n!]
+)
+echo=
+echo 0. Back
+echo=
+echo Select sudoku list:
+set /p "selectedList="
+if "!selectedList!" == "0" goto :EOF
+if defined listName!selectedList! call :selectListNumber
+if "!selectedIsValid!" == "true" goto :EOF
+goto selectList
+
+
+:selectListNumber
+if "!listData%selectedList%!" == "1" goto selectListNum1
+set "selectedNumber=?"
+cls
+echo Sudoku File    : !selected_file!
+echo List name      : [!listSize%selectedList%!] !listName%selectedList%!
+echo=
+echo 0. Back
+echo=
+echo Input sudoku number (1-!listData%selectedList%!) :
+set /p "selectedNumber="
+if "!selectedNumber!" == "0" goto :EOF
+if !selectedNumber! GEQ 1 if !selectedNumber! LEQ !listData%selectedList%! (
+    call :getList "!selected_file!" !selectedList! !selectedNumber!
+    call :checkSelected
+)
+if "!selectedIsValid!" == "true" goto :EOF
+goto selectListNumber
+
+
+:selectListNum1
+call :getList "!selected_file!" !selectedList! 1
+call :checkSelected
+goto :EOF
+
+
+:selectLastUsed
+set "selected_name=!lastUsed_name!"
+set "selected_size=!lastUsed_size!"
+set "selected_file=Unknown"
+set "selected_puzzleArray=!lastUsed_puzzleArray!"
+set "selected_answerArray=!lastUsed_answerArray!"
+set "selected_solvingsArray=!lastUsed_solvingsArray!"
+call :checkSelected
+if not "!selectedIsValid!" == "true" goto selectFile
+goto select_cleanup
+
+
+:checkSelected
+if not defined selected_puzzleArray goto :EOF
+echo=
+echo Checking sudoku puzzle...
+
+call :setupBlocks !selected_size!
+call :checkArray selected_puzzleArray
+if "!arrayIsValid!" == "true" (
+    if /i "%1" == "/c" if not "!duplicatesFound!" == "0" goto check_error
+) else goto check_error
+
+set "selectedIsValid=true"
+call :setupGrid
+
+call :checkArray selected_answerArray
+if "!arrayIsValid!" == "false" set "selected_answerArray="
+rem ? Check if puzzle matches answer or not
+rem ? Find save data of puzzle
+call :checkArray selected_solvingsArray
+if "!arrayIsValid!" == "false" set "selected_solvingsArray="
+
+rem Set as last used
+set "lastUsed_name=!selected_name!"
+set "lastUsed_size=!selected_size!"
+set "lastUsed_file=!selected_file!"
+set "lastUsed_puzzleArray=!selected_puzzleArray!"
+set "lastUsed_answerArray=!selected_answerArray!"
+set "lastUsed_solvingsArray=!selected_solvingsArray!"
+goto :EOF
+
+
+:check_error
+echo ERROR: !errorMsg!
+pause > nul
+set "selected_name="
+set "selected_size="
+set "selected_puzzleArray="
+set "selected_answerArray="
+set "selected_solvingsArray="
+goto :EOF
+
+
+:select_cleanup
+popd
+for /l %%n in (1,1,!listCount!) do (
+    for %%v in (Name Data Size) do set "list%%v%%n="
+)
+goto :EOF
+
+
+:getList
+set "listCount=0"
+set "currentList=0"
+set "isListed=false"
+set "selected_puzzleArray="
+for /f "usebackq tokens=*" %%o in ("%~f1") do (
+    for /f "tokens=1,2* delims= " %%a in ("%%o") do (
+        if /i "%%a" == "#ENDLIST" set "isListed=false"
+        if /i "%%a" == "#SUDOKU" (
+            call :checkBlockSize %%b
+            if "!sizeIsValid!" == "true" (
+                set "isListed=true"
+                set "newList=true"
+                for /l %%n in (1,1,!listCount!) do if "!listName%%n!,!listSize%%n!" == "%%c,%%b" (
+                    set "newList=false"
+                    set "currentList=%%n"
+                )
+                if "!newList!" == "true" (
+                    for %%n in (!listCount!) do (
+                        if not "!listData%%n!" == "0" set /a "listCount+=1"
+                    )
+                    set "currentList=!listCount!"
+                    set "listName!listCount!=%%c"
+                    set "listData!listCount!=0"
+                    set "listSize!listCount!=%%b"
+                )
+            ) else set "isListed=false"
+        ) else for %%n in (!currentList!) do (
+            if "!isListed!" == "true" if /i not "%%a" == "//" set /a "listData%%n+=1"
+            if not defined selected_puzzleArray if "%2,%3" == "%%n,!listData%%n!" (
+                for /f "tokens=1-3 delims=_" %%p in ("%%o") do (
+                    set "selected_puzzleArray=%%p"
+                    set "selected_answerArray=%%q"
+                    set "selected_solvingsArray=%%r"
+                    set "selected_name=!listName%%n! #!listData%%n!"
+                    set "selected_size=!listSize%%n!"
+                )
+            )
+        )
+    )
+)
+if "!listData%listCount%!" == "0" set /a "listCount-=1"
+if "%2,%3" == "," goto :EOF
+if defined selected_puzzleArray goto :EOF
+echo ERROR: Sudoku #%2:%3 not found in the file.
+goto error_unexpected
+
+rem ======================================== File Save / Load ========================================
+
+:save2File [/P | /S] [/Q]
+set "writePath="
+set "promptUser=true"
+:save2File_chkParam
+if /i "%1" == "/P" set "writePath=!puzzlePath!"
+if /i "%1" == "/S" set "writePath=!savePath!"
+if /i "%1" == "/Q" set "promptUser=false"
+shift
+if not "%1" == "" goto save2File_chkParam
+pushd "!puzzlePath!"
+if not defined writePath goto error_unexpected
+if /i "!promptUser!" == "true" goto save2File_prompt
+
+
+:save2File_noPrompt
+set "selected_file=!lastUsed_file!"
+if not defined lastUsed_file set "selected_file=Unknown"
+set "selected_name=!lastUsed_name!"
+if not defined lastUsed_name (
+    set "selected_name=0!time: =!"
+    set "selected_name=!selected_name::=!"
+    set "selected_name=Saved @!date:~12,2!!date:~4,2!!date:~7,2!_!selected_name:~-9,-3!"
+)
+goto save2File_write
+
+
+:save2File_prompt
+set "userInput=?"
+set /p "userInput=Save to file? Y/N? "
+if /i "!userInput!" == "N" (
+    popd
+    goto :EOF
+)
+if /i not "!userInput!" == "Y" goto save2File_prompt
+
+if not defined lastUsed_file set "lastUsed_file=Unknown"
+:save2File_fileIn
+set "selected_file=!lastUsed_file!"
+cls
+dir * /b /o:d /p 2> nul
+echo=
+echo Default : !lastUsed_file!
+echo=
+echo Enter nothing to write to file above
+echo=
+echo 0. Back
+echo=
+echo Input sudoku file name :
+set /p "selected_file="
+if /i "!selected_file!" == "0" (
+    popd
+    goto :EOF
+)
+if exist "!selected_file!" (
+    if exist "!selected_file:~1,-1!" set "selected_file=!selected_file:~1,-1!"
+) else goto save2File_nameIn
+
+echo=
+echo File already exist. Sudoku will be added to that file
+pause > nul
+goto save2File_fileIn
+
+
+:save2File_nameIn
+set "userInput=???"
+cls
+echo File   : !selected_file!
+echo=
+echo Name   : !lastUsed_name!
+echo Size   : !lastUsed_size!
+set /p "=Data   : Puzzle," < nul
+if defined lastUsed_answerArray set /p "=!base! Answer," < nul
+if defined lastUsed_solvingsArray set /p "=!base! Solvings," < nul
+echo !BS!
+echo=
+echo Enter nothing to use the name above
+echo=
+echo Input sudoku name  :
+set /p "selected_name="
+goto save2File_write
+
+
+:save2File_write
+set "saveArray=!lastUsed_puzzleArray!"
+if not defined lastUsed_puzzleArray set "saveArray=0"
+set "saveArray=!saveArray!_!lastUsed_answerArray!"
+if not defined lastUsed_answerArray set "saveArray=!saveArray!0"
+set "saveArray=!saveArray!_!lastUsed_solvingsArray!"
+if not defined lastUsed_solvingsArray set "saveArray=!saveArray!0"
+set "saveArray=!saveArray: =0!"
+
+set "isListed=false"
+set "listName="
+set "listSize="
+if exist "!selected_file!" for /f "usebackq tokens=*" %%o in ("!selected_file!") do (
+    for /f "tokens=1,2* delims= " %%a in ("%%o") do (
+        if /i "%%a" == "#ENDLIST" set "isListed=false"
+        if /i "%%a" == "#SUDOKU" (
+            set "isListed=true"
+            set "listName=%%c"
+            set "listSize=%%b"
+        )
+    )
+)
+if /i "!promptUser!" == "true" echo Saving sudoku [!selected_name!] in [!selected_file!]
+(
+    if /i "!isListed!" == "true" (
+        if not "!listSize!,!listName!" == "!lastUsed_size!,!selected_name!" (
+            echo #sudoku !lastUsed_size! !selected_name!
+        )
+    ) else echo #sudoku !lastUsed_size! !selected_name!
+    echo !saveArray!
+) >> "!selected_file!"
+popd
+if /i "!promptUser!" == "false" goto :EOF
+echo Done
+pause
+goto :EOF
+
+rem ======================================== GUI ========================================
 
 :splashScreen
+goto splashScreen_!gridStyle!
+goto :EOF
+
+
+:splashScreen_ASCII
 echo                       ฒฒฒฒฒ ฒ   ฒ ฒฒฒฒ  ฒฒฒฒฒ ฒ  ฒฒ ฒ   ฒ
-echo                       ฒ     ฒ   ฒ ฒ   ฒ ฒ   ฒ ฒ ฒ   ฒ   ฒ
-echo                       ฒฒฒฒฒ ฒ   ฒ ฒ   ฒ ฒ   ฒ ฒฒ    ฒ   ฒ
-echo                           ฒ ฒ   ฒ ฒ   ฒ ฒ   ฒ ฒ ฒ   ฒ   ฒ
+echo                       ฒ     ฒ   ฒ ฒ   ฒ ฒ   ฒ ฒ ฒฒ  ฒ   ฒ
+echo                       ฒฒฒฒฒ ฒ   ฒ ฒ   ฒ ฒ   ฒ ฒฒฒ   ฒ   ฒ
+echo                           ฒ ฒ   ฒ ฒ   ฒ ฒ   ฒ ฒ ฒฒ  ฒ   ฒ
 echo                       ฒฒฒฒฒ ฒฒฒฒฒ ฒฒฒฒ  ฒฒฒฒฒ ฒ  ฒฒ ฒฒฒฒฒ  !scriptVersion!
 echo=
 echo                                ษอออออหอออออหอออออป
@@ -187,1674 +1965,357 @@ echo                       บ   http://winscr.blogspot.com/    บ
 echo                       ศออออออออออออออออออออออออออออออออออผ
 goto :EOF
 
-rem ================================== Change Size =================================
 
-:sudokuSizeIn
-cls
-echo This feature is still incomplete: 
-echo Text beside sudoku grid may be missing or GUI may not displayed correctly
-echo=
-echo Available size            2x2 to 3x3
-echo Default size              3x3
-echo Current size              %sudokuBlockWidth%x%sudokuBlockHeight%
-echo=
-echo 0. Back
-echo=
-set /p "userInput=Input sudoku block size : "
-if "%userInput%" == "0" goto sudokuMenu
-for /f "tokens=1-2 delims=x" %%a in ("%userInput: =%") do (
-    if %%a0 GEQ 20 if %%a0 LEQ 30 (
-        if %%b0 GEQ 20 if %%b0 LEQ 30 (
-            set "sudokuBlockWidth=%%a"
-            set "sudokuBlockHeight=%%b"
-            goto sudokuSizeSetup
-        )
-    )
-)
-echo=
-echo Invalid sudoku block size
-pause
-goto sudokuSizeIn
+:splashScreen_UTF8
+echo "!BS!                 ____   _    _   ___     _____   _   _  _    _
+echo "!BS!                //  \\  ||  ||  || \\   //   \\  || //  ||  ||
+echo "!BS!                \\___   ||  ||  ||  \\  ||   ||  ||//   ||  ||
+echo "!BS!                _   \\  ||  ||  ||  //  ||   ||  ||\\   ||  ||
+echo "!BS!                \\__//  \\__//  ||_//   \\___//  || \\  \\__//  !scriptVersion!
+echo "!BS!
+echo "!BS!                        _______________________________
+echo "!BS!                        |        Made by wthe22       |
+echo "!BS!                        | http://winscr.blogspot.com/ |
+echo "!BS!                        |_____________________________|
+goto :EOF
 
-rem ===================================== Play =====================================
 
-:puzzleSetup
-call :selectSudoku /c
-if "%userInput%" == "0" goto sudokuMenu
-call :actionReset
-call :matrix create sudokuPuzzleMatrix sudokuPuzzleArray
-call :matrix create sudokuPlayMatrix   sudokuPuzzleArray
-call :sudokuInfo sudokuPuzzleMatrix
-set "saveActionNum=0"
-set "saveActionLog=0000"
-set "saveArray3="
-cls
-call :sudokuBoard sudokuPlayMatrix
-pause
-:puzzlePlay
-call :logUpdate
-set "boardText14=[Z] Undo"
-set "boardText15=[X] Exit to menu"
-set "boardText16=[C] Check"
-set "boardText17=[S] Save"
-set "boardText18=[L] Load"
-set "userInput=?"
-cls
-call :sudokuBoard sudokuPlayMatrix
-set /p "userInput=Input cell code       : "
-if /i "%userInput%" == "Z" call :actionUndo sudokuPlayMatrix
-if /i "%userInput%" == "X" goto puzzleQuitPrompt
-if /i "%userInput%" == "C" goto puzzleCheck
-if /i "%userInput%" == "S" call :saveSudoku S Y A sudokuPuzzleArray A sudokuAnswerArray M sudokuPlayMatrix
-if /i "%userInput%" == "L" call :loadSudoku
-set "cellCode="
-for %%r in (%rowCode%) do if /i "%userInput:~0,1%" == "%%r" set "cellCode=%%r"
-for /l %%c in (1,1,%sudokuSize%) do if "%userInput:~1%" == "%%c" set "cellCode=!cellCode!%%c"
-if defined cellCode if not "%cellCode:~1%" == "" if not "!sudokuPuzzleMatrix%cellCode%!" == " " (
-    echo That cell is part of the puzzle...
-    pause > nul
-    goto puzzlePlay
-) else goto puzzleInput
-goto puzzlePlay
-:puzzleQuitPrompt
-set /p "userInput=Do you want to quit? Y? "
-if /i not "%userInput%" == "Y" goto puzzlePlay
-call :matrix toArray sudokuPlayMatrix sudokuSaveArray
-call :promptSave S Y A sudokuPuzzleArray A sudokuAnswerArray A sudokuSaveArray
-goto sudokuMenu
-:puzzleInput
-choice /c C0%allNumList% /n /m "[C] Cancel | Fill 0-%sudokuSize% : "
-set "userInput=%errorlevel%"
-if "%userInput%" == "1" goto puzzlePlay
-set /a userInput-=2
-call :actionMark sudokuPlayMatrix %cellCode% %userInput% 
-goto puzzlePlay
-:puzzleCheck
-call :checkValidMatrix P sudokuPlayMatrix
-if "%sudokuErrorNum%,%cellEmptyNum%" == "0,0" goto puzzleSolved
-if "%sudokuErrorNum%" == "0" (
-    echo Seems good, continue solving^^!
-) else echo Sudoku contain %sudokuErrorNum% errors...
-pause > nul
-goto puzzlePlay
-:puzzleSolved
-cls
-call :sudokuBoard sudokuPuzzleMatrix
-echo Congratulations, you solved the sudoku
-pause > nul
-if defined sudokuAnswerArray goto sudokuMenu
-call :promptSave P Y A sudokuPuzzleArray M sudokuPlayMatrix
-goto sudokuMenu
+:gridStyle_ASCII
+set "hGrid=ฤ"
+set "vGrid=ณ"
+set "cGrid=ล"
+set "hBorder=อ"
+set "vBorder=บ"
+set "cBorder=ฮ"
+set "uEdge=ห"
+set "dEdge=ส"
+set "lEdge=ฬ"
+set "rEdge=น"
+set "ulCorner=ษ"
+set "urCorner=ป"
+set "dlCorner=ศ"
+set "drCorner=ผ"
+goto :EOF
 
-rem ==================================== Input =====================================
 
-:inputSudoku
-call :boardTextClear
-:inputPuzzle
-set "sudokuName=Input @%date:~10,4%%date:~4,2%%date:~7,2%_%time:~0,2%%time:~3,2%%time:~6,2%"
-call :inputSelect P selectedPuzzleArray selectedPuzzleMatrix
-if "%userInput%" == "0" goto sudokuMenu
-:inputAnswer
-call :inputSelect A selectedAnswerArray selectedAnswerMatrix
-if "%userInput%" == "0" goto inputPuzzle
-set "sudokuPuzzleArray=%selectedPuzzleArray%"
-set "sudokuAnswerArray=%selectedAnswerArray%"
-call :promptSave P Y A sudokuPuzzleArray A sudokuAnswerArray
-goto sudokuMenu
+:gridStyle_UTF8
+set "hGrid=-"
+set "vGrid=|"
+set "cGrid=+"
+set "hBorder=="
+set "vBorder=||"
+set "cBorder=++"
+set "uEdge==="
+set "dEdge==="
+set "lEdge=||"
+set "rEdge=||"
+set "ulCorner==="
+set "urCorner==="
+set "dlCorner==="
+set "drCorner==="
+goto :EOF
 
-:inputSelect [Type] [Array] [Matrix]
-rem Return values
-rem 0 - Back
-set "%2="
-set "userInput=?"
-set "cellCode=A1"
-call :matrix clear %3
-call :actionReset
-call :boardTextClear
-set "boardText11=[W] Up"
-set "boardText12=[A] Left"
-set "boardText13=[S] Down"
-set "boardText14=[D] Right"
-set "boardText16=[Z] Undo"
-set "boardText17=[X] Exit to menu"
-set "boardText18=[C] Check"
-:inputMenu
-cls
-echo 1. Input one by one with GUI
-echo 2. Input in array form
-if "%1" == "A" echo 3. Skip this step
-echo=
-echo 0. Back
-echo=
-if /i "%1" == "P" echo Choose method to input the puzzle   :
-if /i "%1" == "A" echo Choose method to input the answer   :
-set /p "userInput="
-if "%userInput%" == "0" goto :EOF
-if "%userInput%" == "1" goto inputGUI
-if "%userInput%" == "2" goto inputArray
-if /i "%1" == "A" if "%userInput%" == "3" goto :EOF
-echo=
-echo Invalid choice
-pause
-goto inputMenu
-:inputGUI
-set "cellValue=!%3%cellCode%!"
-set "%3%cellCode%=x"
-cls
-call :sudokuBoard %3
-choice /c ZXCWASD0%allNumList% /n /m "Input number of the marked cell : "
-set "userInput=%errorlevel%"
-set "%3%cellCode%=%cellValue%"
-if "%userInput%" == "1" call :actionUndo %3
-if "%userInput%" == "2" goto inputSelect
-if "%userInput%" == "3" goto inputCheck
-if "%userInput%" == "4" call :cellMove U
-if "%userInput%" == "5" call :cellMove L
-if "%userInput%" == "6" call :cellMove D
-if "%userInput%" == "7" call :cellMove R
-if %userInput% LEQ 7 goto inputGUI
-set /a userInput-=8
-if "%1,%userInput%" == "A,0" goto inputGUI
-call :actionMark %3 %cellCode% %userInput%
-call :cellMove N
-goto inputGUI
-:inputArray
-set "userInput=?"
-cls
-echo    1 2 3 4 5 6 7 8 9    Example of a sudoku puzzle array:
-echo   ษอออออหอออออหอออออป   
-echo A บ ณ8ณ บ ณ ณ3บ ณ9ณ บ   1. Input the left to right of the row (A1 to A9)
-echo B บ5ณ ณ3บ7ณ ณ บ8ณ4ณ บ   2. Go to the left of the row below (Go to B1)
-echo C บ ณ4ณ6บ ณ ณ2บ ณ ณ5บ   3. Repeat until done
-echo   ฬอออออฮอออออฮอออออน   
-echo D บ4ณ6ณ1บ ณ ณ7บ ณ ณ9บ   You can represent an empty cell using dot ".",
-echo E บ ณ3ณ บ ณ ณ บ ณ1ณ บ   space " ", zero "0" and underscore "_"
-echo F บ2ณ ณ บ1ณ ณ บ6ณ8ณ3บ   
-echo   ฬอออออฮอออออฮอออออน   Sudoku puzzle array (one line):
-echo G บ1ณ ณ บ9ณ ณ บ7ณ2ณ บ   .8...3.9.5.37..84..46..2..5
-echo H บ ณ9ณ4บ ณ ณ8บ5ณ ณ1บ   461..7..9.3.....1.2..1..683
-echo I บ ณ2ณ บ4ณ ณ บ ณ3ณ บ   1..9..72..94..85.1.2.4...3.
-echo   สอออออสอออออสอออออผ   
-echo=
-echo 0. Back
-echo=
-echo Input the sudoku array :
-set /p "userInput="
-if "%userInput%" == "0" goto inputSelect
-call :checkValidArray userInput
-if "%return%" == "0" (
-    set "%2=%userInput%"
-    goto inputCheck
-)
-echo Invalid sudoku format
-pause
-goto inputArray
-:inputCheck
-if defined %2 call :matrix create %3 %2
-call :checkValidMatrix %1 %3
-if "%sudokuErrorNum%" == "0" (
-    call :matrix toArray %3 %2
+
+:setupGrid
+if "!blockWidth!x!blockHeight!" == "!currentGridSize!" (
+    mode !screenWidth!,!screenHeight!
     goto :EOF
 )
-:inputErrorMenu
-set "userInput=?"
-cls
-call :sudokuBoardMini %3
-echo Found %sudokuErrorNum% errors on sudoku
-echo 1. Fix errors
-echo 2. Re-input
-echo 3. Ignore
-echo 4. View errors
-echo=
-echo What do you want to do?
-set /p "userInput="
-if "%userInput%" == "1" goto inputGUI
-if "%userInput%" == "2" goto inputSelect
-if "%userInput%" == "3" goto :EOF
-if "%userInput%" == "4" goto inputErrorView
-echo=
-echo Invalid choice
-pause
-goto inputErrorMenu
-:inputErrorView
-cls
-call :sudokuBoardMini %3
-echo Sudoku errors  :
-echo=%cellInvalidList%
-if %cellEmptyNum% GTR 64 echo There are more than 1 solution because there are too few givens
-if /i "%1" == "A" if not "%cellEmptyNum%" == "0" echo Found %cellEmptyNum% empty cells on answer
-echo=
-pause
-goto inputErrorMenu
 
-rem ==================================== Viewer ====================================
+set "currentGridSize=!blockWidth!x!blockHeight!"
+set "currentGridStyle=!gridStyle!"
 
-:viewSetup
-call :selectSudoku
-if not defined sudokuPuzzleArray goto sudokuMenu
-echo=
-echo Preparing sudoku...
-call :matrix create sudokuPuzzleMatrix sudokuPuzzleArray
-call :checkValidMatrix P sudokuPuzzleMatrix
-set "puzzleErrorNum=%sudokuErrorNum%"
-if defined sudokuAnswerArray (
-    call :matrix create sudokuAnswerMatrix sudokuAnswerArray
-    call :checkValidMatrix A sudokuAnswerMatrix
-    set "answerErrorNum=!sudokuErrorNum!"
+rem Build sudoku n candidate GUI
+call :gridStyle_!gridStyle!
+for %%v in (
+    smallGridLine smallBorderLine
+    GUI_topBorder GUI_midBorder GUI_btmBorder GUI_midGrid
+    space1 space2
+    GUI_colNumbers GUI_sideSpacing
+    log_topBorder log_midLine log_btmBorder
+) do set "%%v="
+set "spacing=  "
+for /l %%n in (1,1,3) do (
+    set   "smallGridLine=!smallGridLine!!hGrid!"
+    set "smallBorderLine=!smallBorderLine!!hBorder!"
 )
-if defined sudokuSaveArray (
-    call :matrix create sudokuSaveMatrix sudokuSaveArray
-    call :checkValidMatrix A sudokuSaveMatrix
-    set "saveErrorNum=!sudokuErrorNum!"
+set "gridLine=!smallGridLine!"
+set "borderLine=!smallBorderLine!"
+for /l %%n in (2,1,!blockWidth!) do (
+    set   "gridLine=!gridLine!!cGrid!!smallGridLine!"
+    set "borderLine=!borderLine!!hBorder!!smallBorderLine!"
 )
-if defined sudokuPuzzleArray set "sudokuPuzzleArray=%sudokuPuzzleArray: =.%"
-if defined sudokuAnswerArray set "sudokuAnswerArray=%sudokuAnswerArray: =.%"
-if defined sudokuSaveArray   set   "sudokuSaveArray=%sudokuSaveArray: =.%"
-:viewMenu
-set "userInput=?"
-cls
-echo Sudoku name    : %sudokuName%
-echo=
-if defined sudokuPuzzleArray echo 1. Puzzle
-if defined sudokuAnswerArray echo 2. Answer
-if defined sudokuSaveArray   echo 3. Save
-echo=
-echo A. View in array form
-echo 0. Back
-echo=
-echo What do you want to view?
-set /p "userInput="
-if "%userInput%" == "0" goto sudokuMenu
-if "%userInput%" == "1" call :viewSudoku sudokuPuzzleMatrix sudokuPuzzleArray
-if "%userInput%" == "2" call :viewSudoku sudokuAnswerMatrix sudokuAnswerArray
-if "%userInput%" == "3" call :viewSudoku sudokuSaveMatrix   sudokuSaveArray
-if /i "%userInput%" == "A" goto viewArray
-goto viewMenu
-
-:viewSudoku
-if not defined %2 goto :EOF
-echo=
-echo Collecting information...
-call :sudokuInfo %1
-set "boardText17=[C] Copy array to clipboard"
-cls
-call :sudokuBoard %1
-set /p "userInput=Press enter to continue...              |>"
-if /i not "%userInput%" == "C" goto viewMenu
-set/p "=!%2!" < nul | clip
-set "userInput=."
-echo Copied array to clipboard
-pause > nul
-goto viewSudoku
-
-:viewArray
-cls
-if defined sudokuPuzzleArray (
-    echo Puzzle :
-    echo [!sudokuPuzzleArray:~0,27!]
-    echo [!sudokuPuzzleArray:~27,27!]
-    echo [!sudokuPuzzleArray:~54,27!]
-    echo=
+for /l %%n in (2,1,!blockHeight!) do (
+    set "GUI_topBorder=!GUI_topBorder!!uEdge!!borderLine!"
+    set "GUI_midBorder=!GUI_midBorder!!cBorder!!borderLine!"
+    set "GUI_btmBorder=!GUI_btmBorder!!dEdge!!borderLine!"
+    set   "GUI_midGrid=!GUI_midGrid!!vBorder!!gridLine!"
 )
-if defined sudokuAnswerArray (
-    echo Answer :
-    echo [%sudokuAnswerArray:~0,27%]
-    echo [%sudokuAnswerArray:~27,27%]
-    echo [%sudokuAnswerArray:~54,27%]
-    echo=
-)
-if defined sudokuSaveArray (
-    echo Save   :
-    echo [%sudokuSaveArray:~0,27%]
-    echo [%sudokuSaveArray:~27,27%]
-    echo [%sudokuSaveArray:~54,27%]
-    echo=
-)
-echo=
-pause
-goto viewMenu
-rem ==================================== Solve =====================================
-
-:solveSetup
-call :selectSudoku /c
-if "%userInput%" == "0" goto sudokuMenu
-set "solveSaves=N"
-if not defined sudokuSaveArray goto solveShowStepIn
-:solveSavesIn
-set "solveSaves=?"
-cls
-echo Save data found
-echo Do you want to solve the save data with solver?
-set /p "solveSaves=Y/N? "
-if /i "%solveSaves%" == "Y" goto solveShowStepIn
-if /i "%solveSaves%" == "N" goto solveShowStepIn
-echo=
-echo Invalid choice
-pause
-goto solveSavesIn
-:solveShowStepIn
-set "showSteps=?"
-cls
-echo Do you want to show solving steps?
-set /p "showSteps=Y/N? "
-if /i "%showSteps%" == "Y" goto solverSolveSetup
-if /i "%showSteps%" == "N" goto solverSolveSetup
-echo=
-echo Invalid choice
-pause
-goto solveShowStepIn
-:solverSolveSetup
-if /i "%solveSaves%" == "Y" (
-    call :matrix create solverPuzzleMatrix sudokuSaveArray
-    call :matrix create solverPlayMatrix sudokuSaveArray
-) else (
-    call :matrix create solverPuzzleMatrix sudokuPuzzleArray
-    call :matrix create solverPlayMatrix sudokuPuzzleArray
-)
-call :actionReset
-call :sudokuInfo solverPuzzleMatrix
-cls
-call :sudokuBoard solverPuzzleMatrix
-echo Press any key to start solving
-pause > nul
-echo Solving sudoku...
-set "time1=%time%"
-if /i "%showSteps%" == "Y" (
-    mode 95,40
-    call :solveSudoku solverPlayMatrix solverUpdate
-    mode 80,25
-) else call :solveSudoku solverPlayMatrix
-call :Time_Subtract %time1% %time%
-call :Time_CS_Format %return%
-if "%solvedCells%" == "%cellEmptyNum%" goto solveDone
-if not "%sudokuErrorNum%" == "0" goto solveError
-if /i "%showSteps%" == "Y" (
-    mode 95,40
-    call :solverUpdate solverPlayMatrix E
-    mode 80,25
-)
-call :sudokuInfo solverPuzzleMatrix
-call :matrix find 0 solverPlayMatrix
-set /a cellGivenNum= %sudokuArea% - %cellEmptyNum%
-set  "boardText6=Givens now     : %cellGivenNum%"
-cls
-call :sudokuBoard solverPlayMatrix
-echo This sudoku is either too hard for solver or it is invalid
-choice /c YN /m "Do you want to use bruteforce?"
-if "%errorlevel%" == "2" (
-    if "%solvedCells%" == "0" goto sudokuMenu
-    echo Sudoku saved to memory, you can view or load it later
-    choice /c YN /m "Do you want to save this partially solved sudoku?"
-    call :matrix toArray solverPlayMatrix sudokuSaveArray
-    if "!errorlevel!" == "1" call :saveSudoku S Y A sudokuPuzzleArray A sudokuAnswerArray A sudokuSaveArray
-    goto sudokuMenu
+set "GUI_topBorder=!spacing!!ulCorner!!borderLine!!GUI_topBorder!!urCorner!"
+set "GUI_midBorder=!spacing!!lEdge!!borderLine!!GUI_midBorder!!rEdge!"
+set "GUI_btmBorder=!spacing!!dlCorner!!borderLine!!GUI_btmBorder!!drCorner!"
+set   "GUI_midGrid=!spacing!!vBorder!!gridLine!!GUI_midGrid!!vBorder!"
+call :strlen vBorder
+for /l %%n in (1,1,!return!) do set "space1=!space1! "
+call :strlen vGrid
+for /l %%n in (1,1,!return!) do set "space2=!space2! "
+set "GUI_colNumbers=!spacing!!space1!"
+for /l %%n in (1,1,!sideLength!) do (
+    set "tempVar1=%%n  "
+    set "GUI_colNumbers=!GUI_colNumbers! !tempVar1:~0,2!"
+    set /a "tempVar1=%%n %% !blockWidth!"
+    if "!tempVar1!" == "0" (
+        set "GUI_colNumbers=!GUI_colNumbers!!space1!"
+    ) else set "GUI_colNumbers=!GUI_colNumbers!!space2!"
 )
 
-choice /c YN /m "Do you want to count number of solutions?"
-if "%errorlevel%" == "1" set "userInput=Y"
-if "%errorlevel%" == "2" set "userInput=N"
-cls
-call :sudokuBoard solverPlayMatrix
-echo Press any key to start bruteforce solving
-pause > nul
-echo Bruteforcing sudoku...
-call :bruteforceSudoku solverPlayMatrix %userInput%
-call :sudokuInfo solverPuzzleMatrix
-cls
-call :sudokuBoard solverPlayMatrix
-echo Done in %time2% with %guessesNum% guesses
-if "%solutionCount%" == "%solutionCountMax%" (
-    echo At least %solutionCount% solutions found
-) else echo %solutionCount% solution(s) found
-if not "%solutionCount%" == "0" echo First solution found in %solution1Time% with %solution1Guess% guesses
-pause > nul
-call :matrix toArray solverPlayMatrix sudokuAnswerArray
-call :promptSave P Y A sudokuPuzzleArray A sudokuAnswerArray
-goto sudokuMenu
+rem Calculate grid size and screen size
+call :strlen GUI_colNumbers
+set "GUI_width=!return!"
+set /a "GUI_height= 2 + 2 * !sideLength!"
+set "sideText_width=25"
+set /a "screenWidth=!GUI_width! + !sideText_width! + 3"
+set /a "screenHeight=!GUI_height! + 3"
+if !screenWidth! LSS 54 set "screenWidth=54"
+if !screenHeight! LSS 17 set "screenHeight=17"
+set /a "GUI_hSpacing= (!screenWidth! - !GUI_width! - !sideText_width! - 1) / 2 "
+set /a "GUI_vSpacing= (!screenHeight! - !GUI_height! - 3) / 2"
+if !GUI_vSpacing! LSS 0 set "GUI_vSpacing=0"
+if !GUI_hSpacing! LSS 0 set "GUI_hSpacing=0"
+set /a "sideText_height= !GUI_vSpacing! * 2 + !GUI_height!"
+set /a "sideText_size= !sideText_width! * !sideText_height!"
 
-:solverUpdate [Matrix] [Method] [Number] [CellCode]
-set "tempVar1=%2"
-if "%tempVar1:~0,1%" == "1" call :actionMark %1 %4 %3
-call :logUpdate
-cls
-call :sudokuBoard %1
-echo ---------------------------------------- Possibilities ----------------------------------------
-call :possibilityBoard possibilities
-if /i "%2" == "E" echo Solver did not have enough logic to solve sudoku...
-if "%2" == "1" echo Single candidate [%4]
-if "%2" == "1r" echo Hidden single in row [%4]
-if "%2" == "1c" echo Hidden single in column [%4]
-if "%2" == "1b" echo Hidden single in box [%4]
-pause > nul
+set /a "showStep_width= !GUI_width! + !totalCells! - 3 * !sideLength! + 2"
+set /a "showStep_height= 2 * !GUI_height! - !sideLength! + !blockWidth! + 3"
+if !showStep_width! LSS !screenWidth! set "showStep_width=!screenWidth!"
+if !showStep_height! LSS !screenHeight! set "showStep_height=!screenHeight!"
+mode !screenWidth!,!screenHeight!
+
+rem Build spacings
+for /l %%n in (1,1,!GUI_hSpacing!) do set "GUI_sideSpacing=!GUI_sideSpacing! "
+set "GUI_lineSpacing=!GUI_sideSpacing!!GUI_sideSpacing!"
+for /l %%n in (1,1,!GUI_width!) do set "GUI_lineSpacing=!GUI_lineSpacing! "
+
+rem Build log viewer GUI
+for /l %%n in (1,1,13) do (
+    set "log_topBorder=!log_topBorder!!hBorder!"
+    set "log_midLine=!log_midLine!!hGrid!"
+    set "log_btmBorder=!log_btmBorder!!hBorder!"
+)
+set "log_topBorder=!ulCorner!!log_topBorder!!urCorner!"
+set     "log_title=!vBorder!     LOGS    !vBorder!"
+set   "log_midLine=!vBorder!!log_midLine!!vBorder!"
+set "log_btmBorder=!dlCorner!!log_btmBorder!!drCorner!"
+
+rem Create files for color GUI
+pushd "!tempPath!"
+set /p "=!BS!!BS!" < nul > "   _" 2> nul
+for %%s in (X !symbolSpaced!) do (
+    set /p "=!BS!!BS!" < nul > " %%s _" 2> nul
+)
+popd
+
+set "clearLine="
+for /l %%n in (2,1,!screenWidth!) do set "clearLine=!clearLine! "
+set "clearLine=_!BS!!CR!!clearLine!!CR!"
+
+rem Delete variables
+for %%v in (
+    smallGridLine smallBorderLine gridLine borderLine
+    space1 space2 currentText
+    hGrid cGrid hBorder cBorder uEdge dEdge
+    ulCorner urCorner dlCorner drCorner
+) do set "%%v="
 goto :EOF
 
-:solveDone
-call :checkValidMatrix A solverPlayMatrix
-if not "%sudokuErrorNum%" == "0" goto solveError
-cls
-call :sudokuBoard solverPlayMatrix
-if /i "%showSteps%" == "Y" (
-    echo Solve done
-) else echo Solved in [%return%]
-pause > nul
-call :matrix toArray solverPlayMatrix sudokuAnswerArray
-call :promptSave P Y A sudokuPuzzleArray A sudokuAnswerArray
-goto sudokuMenu
 
-:solveError
-cls
-call :sudokuBoard solverPlayMatrix
-echo Found %sudokuErrorNum% errors on sudoku:
-echo=%cellInvalidList%
-echo=
-pause > nul
-goto sudokuMenu
-
-rem ================================== Generate ====================================
-
-:generateSetup
-set "genEmptyNum=0"
-set "generateMode=0"
-set /a improveEmptyNum=%sudokuArea%*60/100
-:generateLvlIn
-set "generateLvl=?"
-cls
-echo 1. Easy
-echo 2. Random (Could range from easy to beyond extreme)
-echo=
-echo C. Custom
-echo 0. Back
-echo=
-echo Input difficulty level:
-set /p "generateLvl="
-if "%generateLvl%" == "0" goto sudokuMenu
-if /i "%generateLvl%" == "C" goto generateCustomMenu
-if %generateLvl% GEQ 1 if %generateLvl% LEQ 2 goto generateStart
-echo=
-echo Invalid choice
-pause
-goto generateLvlIn
-
-:generateCustomMenu
-cls
-echo 1. Number of empty cells [%genEmptyNum%]
-echo=
-echo 0. Back
-echo=
-echo What do you want to custom?
-set /p "userInput="
-if "%userInput%" == "0" goto generateLvlIn
-if "%userInput%" == "1" goto generateCustomEmptyNum
-set "generateMode=%userInput%"
-echo=
-echo Invalid choice
-pause
-goto generateCustomMenu
-
-:generateCustomEmptyNum
-set /a minEmptyNum=%sudokuArea%*10/100 + 1
-cls
-echo Default    : 0 (Maximum number of empty cells available)
-echo=
-echo Custom     : %minEmptyNum% - %improveEmptyNum%
-echo=
-echo Input number of empty cells :
-set /p "userInput="
-if %userInput% GEQ %minEmptyNum% if %userInput% LEQ %improveEmptyNum% (
-    set "genEmptyNum=%userInput%"
-    goto generateCustomMenu
+:displaySudoku [Matix_Name] [/N (No vertical spacing)]
+pushd "!tempPath!"
+set "currentLine=1"
+if /i not "%2" == "/N" for /l %%n in (1,1,!GUI_vSpacing!) do for %%n in (!currentLine!) do (
+    echo=!GUI_lineSpacing!!sideText%%n!
+    set /a "currentLine+=1"
 )
-echo=
-echo Invalid input
-pause
-goto generateCustomEmptyNum
-
-:generateStart
-cls
-echo Sudoku size        : %sudokuSize%x%sudokuSize%   [%sudokuBlockWidth%x%sudokuBlockHeight%]
-echo Difficulty level   : %generateLvl%
-echo=
-set/p "=!clearLine!Generating answer..." < nul
-set "time1=%time%"
-call :generateSudoku sudokuAnswerMatrix 111
-for /l %%n in (1,1,11) do (
-    set /a num1=!random! %% %sudokuSize% + 1
-    set /a num2=!random! %% %sudokuSize% + 1
-    call :matrix swap !num1! !num2!
-)
-call :matrix toArray sudokuAnswerMatrix sudokuAnswerArray
-call :matrix copy sudokuAnswerMatrix sudokuPuzzleMatrix
-set "timeAnswer=%time2%"
-echo !clearLine!Generate answer done
-set "cellEmptyCount=0"
-set "genAttempts=0"
-goto generatePuzzleLvl!generateLvl!
-goto errorUnexpected
-
-:generatePuzzleLvl1
-set "cellEmptyCount=0"
-set "progressCount=0"
-call :randCellList sudokuPuzzleMatrix /f
-for %%c in (!cellList!) do (
-    set /a "progressCount+=1"
-    set /a progressNum=!progressCount! * 100 / !sudokuArea!
-    set /p "=!clearLine!Generating puzzle... !progressNum!%%" < nul
-    call :matrix copy sudokuPuzzleMatrix solverPlayMatrix
-    set "solverPlayMatrix%%c= "
-    call :solveSudoku solverPlayMatrix
-    if "!solvedCells!" == "!cellEmptyNum!" (
-        set "sudokuPuzzleMatrix%%c= "
-        set /a "cellEmptyCount+=1"
+echo !GUI_sideSpacing!!GUI_colNumbers!!GUI_sideSpacing!!sideText%currentLine%!
+set /a "currentLine+=1"
+echo !GUI_sideSpacing!!GUI_topBorder!!GUI_sideSpacing!!sideText%currentLine%!
+set /a "currentLine+=1"
+for /l %%i in (1,1,!sideLength!) do (
+    set /p "=!base!!GUI_sideSpacing!!alphabets:~%%i,1! !vBorder!" < nul
+    for /l %%j in (1,1,!sideLength!) do (
+        if "!useColor!" == "true" (
+            findstr /l /v /a:!GUI_color_%%i-%%j! "." " !%1_%%i-%%j! _" nul 2> nul
+        ) else set /p "=!base! !%1_%%i-%%j! " < nul
+        set /a "tempVar1=%%j %% !blockWidth!"
+        if "!tempVar1!" == "0" (
+            set /p "=!base!!vBorder!" < nul
+        ) else set /p "=!base!!vGrid!" < nul
     )
-    if "!cellEmptyCount!" == "!genEmptyNum!" goto generateDone
-)
-echo=
-goto generateDone
-
-:generatePuzzleLvl2
-set "cellEmptyCount=0"
-set "progressCount=0"
-call :randCellList sudokuPuzzleMatrix /f
-for %%c in (!cellList!) do (
-    set /a "progressCount+=1"
-    set /a progressNum=!progressCount! * 100 / !sudokuArea!
-    set /p "=!clearLine!Generating puzzle... !progressNum!%%" < nul
-    call :matrix copy sudokuPuzzleMatrix solverPlayMatrix
-    set "solverPlayMatrix%%c= "
-    call :bruteforceSudoku solverPlayMatrix C
-    if "!solutionCount!" == "1" (
-        set "sudokuPuzzleMatrix%%c= "
-        set /a "cellEmptyCount+=1"
+    for %%n in (!currentLine!) do echo !base!!GUI_sideSpacing!!sideText%%n!
+    set /a "currentLine+=1"
+    for %%n in (!currentLine!) do (
+        set /a "tempVar1=%%i %% !blockHeight!"
+        if "!tempVar1!" == "0" (
+            if "%%i" == "!sideLength!" (
+                echo !GUI_sideSpacing!!GUI_btmBorder!!GUI_sideSpacing!!sideText%%n!
+            ) else echo !GUI_sideSpacing!!GUI_midBorder!!GUI_sideSpacing!!sideText%%n!
+        ) else echo !GUI_sideSpacing!!GUI_midGrid!!GUI_sideSpacing!!sideText%%n!
     )
-    if "!cellEmptyCount!" == "!genEmptyNum!" goto generateDone
+    set /a "currentLine+=1"
 )
-echo=
-goto generateDone
-
-:generateDone
-echo Preparing sudoku...
-call :matrix toArray sudokuPuzzleMatrix sudokuPuzzleArray
-call :Time_Subtract %time1% %time%
-call :Time_CS_Format %return%
-call :Time_Subtract %timeAnswer% %return%
-set "genTime=%return%"
-call :Time_CS_Format %return%
-set "time1=%return%"
-set "sudokuName=Level%generateLvl% @%date:~10,4%%date:~4,2%%date:~7,2%_%time:~0,2%%time:~3,2%%time:~6,2%"
-call :sudokuInfo sudokuPuzzleMatrix
-if /i "%generateMode%" == "G" (
-    call :saveSudoku P Y A sudokuPuzzleArray
-    goto generateStart
+if /i not "%2" == "/N" for /l %%n in (1,1,!GUI_vSpacing!) do for %%n in (!currentLine!) do (
+    echo=!GUI_lineSpacing!!sideText%%n!
+    set /a "currentLine+=1"
 )
-set /a tempVar1=%sudokuArea%*25/100
-if /i "%generateMode%" == "S" (
-    if "%sudokuLevel%" == "2" (
-        set "sudokuName=NE_!sudokuName!"
-        call :saveSudoku P N A sudokuPuzzleArray
-    ) else if %cellGivenNum% LEQ %tempVar1% (
-        set "sudokuName=G%cellGivenNum%_!sudokuName!"
-        call :saveSudoku P N A sudokuPuzzleArray
-    )
-    goto generateStart
-)
-
-cls
-title Sudoku !scriptVersion!
-call :sudokuBoard sudokuPuzzleMatrix
-echo=
-echo Generate puzzle done in %time1% and selected this sudoku
-if /i "%generateMode%" == "P" (
-    set /p "userInput=[X] Exit                 "
-    if /i "!userInput!" == "X" goto sudokuMenu
-    goto generateStart
-)
-pause
-call :promptSave P Y A sudokuPuzzleArray A sudokuAnswerArray
-goto sudokuMenu
-
-rem ================================= Generate Info ================================
-
-:genInfo_Solve
-set /a sudokuCount+=1
-set "selectedName=%sudokuCount%"
-set "selectedPuzzleArray=%1"
-call :checkValidArray selectedPuzzleArray
-if "%return%" == "1" goto list_ToSolve_Error
-call :matrix create selectedPuzzleMatrix selectedPuzzleArray
-call :checkValidMatrix P selectedPuzzleMatrix
-set /a cellGivenNum=%sudokuArea% - %cellEmptyNum%
-if not "!sudokuErrorNum!" == "0" goto list_ToSolve_Error
-set "sudokuName=%selectedName%"
-set "sudokuPuzzleArray=%selectedPuzzleArray%"
-call :matrix create solverPuzzleMatrix sudokuPuzzleArray
-call :matrix create solverPlayMatrix sudokuPuzzleArray
-
-call :bruteforceSudoku solverPlayMatrix Y
-
-echo Sudoku #%sudokuCount% - %solutionCount%S %cellGivenNum%C %solution1Guess%/%guessesNum%G [%solution1Time%/%time2%]
-echo     %sudokuPuzzleArray: =.%_%cellGivenNum%_%solutionCount%_%solution1Guess%/%guessesNum% >> %saveFile%
-goto :EOF
-
-:genInfo_Error
-echo Sudoku #%sudokuCount% - E
-echo     %sudokuPuzzleArray: =.%_E >> %saveFile%
-goto :EOF
-
-rem ===================================== Menu =====================================
-
-:selectSudoku [/c]
-set "selectedName="
-set "selectedPuzzleArray="
-set "selectedAnswerArray="
-set "selectedIsValid=false"
-
-pushd "!puzzlePath!"
-
-:selectFile
-set "selectedFile="
-set "selectedNumber=?"
-cls
-dir * /b /o:d /p 2> nul
-echo=
-echo T. Built-in sudoku (This file)
-if defined sudokuPuzzleArray echo L. Last used / entered sudoku
-echo 0. Back
-echo=
-echo Select sudoku file :
-set /p "selectedFile="
-echo=
-if "!selectedFile!" == "0" (
-    popd
-    goto :EOF
-)
-if /i "!selectedFile!" == "L" if defined sudokuPuzzleArray goto selectLastUsed
-if /i "!selectedFile!" == "T" set "selectedFile=%~f0"
-if exist "!selectedFile!" (
-    if exist "!selectedFile:~1,-1!" set "selectedFile=!selectedFile:~1,-1!"
-) else (
-    echo File not found
-    pause
-    goto selectFile
-)
-call :getList "!selectedFile!"
-if "!listCount!" == "0" (
-    echo No sudoku data found
-    pause
-    goto selectFile
-)
-call :selectList
-if "!selectedIsValid!" == "true" (
-    popd
-    goto :EOF
-)
-goto selectFile
-
-:selectList
-set "selectedList=?"
-cls
-echo Sudoku File    : !selectedFile!
-echo=
-for /l %%n in (1,1,!listCount!) do (
-    set "display=  %%n"
-    echo !display:~-2,2!. !listName%%n! [!listData%%n!]
-)
-echo=
-echo 0. Back
-echo=
-echo Select sudoku list:
-set /p "selectedList="
-if "!selectedList!" == "0" goto :EOF
-if defined listName!selectedList! call :selectListNumber
-if "!selectedIsValid!" == "true" goto :EOF
-goto selectList
-
-:selectListNumber
-if "!listData%selectedList%!" == "1" goto selectListNum1
-set "selectedNumber=?"
-cls
-echo Sudoku File    : !selectedFile!
-echo List name      : !listName%selectedList%!
-echo=
-echo 0. Back
-echo=
-echo Input sudoku number (1-!listData%selectedList%!) :
-set /p "selectedNumber="
-if "!selectedNumber!" == "0" goto :EOF
-if !selectedNumber! GEQ 1 if !selectedNumber! LEQ !listData%selectedList%! (
-    call :getList "!selectedFile!" !selectedList! !selectedNumber!
-    call :checkSelected
-)
-if "!selectedIsValid!" == "true" goto :EOF
-goto selectListNumber
-
-:selectListNum1
-call :getList "!selectedFile!" !selectedList! 1
-call :checkSelected
-goto :EOF
-
-:selectLastUsed
-set "selectedName=!lastUsed_name!"
-set "selectedPuzzleArray=!lastUsed_puzzleArray!"
-set "selectedAnswerArray=!lastUsed_answerArray!"
-set "selectedSaveArray=!lastUsed_savesArray!"
-call :checkSelected
-if not "!selectedIsValid!" == "true" goto selectFile
 popd
 goto :EOF
 
-:getList
-set "listCount=0"
-set "isListed=false"
-set "selectedPuzzleArray="
-for /f "usebackq tokens=*" %%o in ("%~f1") do (
-    for /f "tokens=1,2* delims= " %%a in ("%%o") do (
-        if /i "%%a" == "#ENDLIST" set "isListed=false"
-        if /i "%%a" == "#SUDOKU" (
-            if "%%b" == "!sudokuBlockWidth!x!sudokuBlockHeight!" (
-                set "isListed=true"
-                for %%n in (!listCount!) do (
-                    if not "!listData%%n!" == "0" set /a "listCount+=1"
-                )
-                set "listName!listCount!=%%c"
-                set "listData!listCount!=0"
-                set "listSize!listCount!=%%b"
-            ) else set "isListed=false"
-        ) else for %%n in (!listCount!) do (
-            if "!isListed!" == "true" if /i not "%%a" == "//" set /a "listData%%n+=1"
-            if not defined selectedPuzzleArray if "%2,%3" == "%%n,!listData%%n!" (
-                for /f "tokens=1-3 delims=_" %%p in ("%%o") do (
-                    set "selectedPuzzleArray=%%p"
-                    set "selectedAnswerArray=%%q"
-                    set "selectedSaveArray=%%r"
-                    set "selectedName=!listName%%n! #!listData%%n!"
-                )
-            )
-        )
-    )
-)
-if "!listData%listCount%!" == "0" set /a "listCount-=1"
-if "%2,%3" == "," goto :EOF
-if defined selectedPuzzleArray goto :EOF
-echo ERROR: Sudoku #%2:%3 not found in the file.
-goto errorUnexpected
 
-:checkSelected
-if not defined selectedPuzzleArray goto :EOF
-echo=
-echo Checking sudoku puzzle...
-set "selectedIsValid=false"
-call :checkValidArray selectedPuzzleArray
-if "%return%" == "1" goto selectArrayBad
-if /i "%1" == "/C" (
-    call :matrix create selectedPuzzleMatrix selectedPuzzleArray
-    call :checkValidMatrix P selectedPuzzleMatrix
-    if not "!sudokuErrorNum!" == "0" goto selectMatrixBad
-)
-
-set "sudokuName=!selectedName!"
-if not defined selectedName set "sudokuName=@%date:~10,4%%date:~4,2%%date:~7,2%_%time:~0,2%%time:~3,2%%time:~6,2%"
-set "lastUsed_name=!sudokuName!"
-set "sudokuPuzzleArray=!selectedPuzzleArray!"
-set "lastUsed_puzzleArray=!selectedPuzzleArray!"
-set "selectedIsValid=true"
-
-if not defined selectedAnswerArray goto selectFindSaves
-call :checkValidArray selectedAnswerArray
-if "%return%" == "1" goto selectPuzzleOnly
-if /i "%1" == "/C" (
-    call :matrix create selectedAnswerMatrix selectedAnswerArray
-    call :checkValidMatrix A selectedAnswerMatrix
-    if not "!sudokuErrorNum!" == "0" goto selectPuzzleOnly
-    call :matrix compare selectedPuzzleMatrix selectedAnswerMatrix
-    if not "!return!" == "0" goto selectPuzzleOnly
-)
-set "sudokuAnswerArray=!selectedAnswerArray!"
-set "lastUsed_answerArray=!selectedAnswerArray!"
-
-:selectFindSaves
-if not defined selectedSaveArray (
-    if not exist "!savePath!!sudokuName!.bat" goto :EOF
-    call "!savePath!%sudokuName%.bat"
-)
-if not defined selectedPuzzleArray goto :EOF
-if not defined selectedSaveArray goto :EOF
-call :checkValidArray selectedPuzzleArray
-if "%return%" == "1" goto :EOF
-if not "%selectedPuzzleArray%" == "%sudokuPuzzleArray%" goto :EOF
-call :array compare sudokuPuzzleArray selectedSaveArray
-set "sudokuSaveArray=%selectedSaveArray%"
-set "lastUsed_savesArray=!selectedSaveArray!"
-if "%return%" == "0" goto :EOF
-set "sudokuSaveArray="
-set "lastUsed_savesArray="
-goto :EOF
-
-:selectPuzzleOnly
-echo The answer contain errors 
-echo  or the puzzle doesn't match with the answer
-echo Script will continue without answer
-pause
-set "selectedAnswerArray="
-goto selectFindSaves
-
-:selectArrayBad
-echo Invalid array format detected
-echo Cannot use this sudoku
-pause
-goto :EOF
-
-:selectMatrixBad
-echo Sudoku puzzle is invalid, it contain errors
-pause
-set "selectedPuzzleArray="
-set "selectedAnswerArray="
-goto :EOF
-
-:promptSave [Location] [ShowInfo] [Type] [PuzzleArray] [Type] [AnswerArray] [Type] [SaveArray]
-cls
-echo Data   :
-if not "%3" == "" echo - Puzzle
-if not "%5" == "" echo - Answer
-if not "%7" == "" echo - Play / Save
-echo=
-echo Save to file?
-set /p "userInput=Y/N? "
-if /i "%userInput%" == "N" goto :EOF
-if /i "%userInput%" == "Y" goto sudokuNameIn
-echo=
-echo Invalid choice
-pause
-goto promptSave
-:sudokuNameIn
-cls
-echo Name   : %sudokuName%
-echo=
-echo Enter nothing to use the name above
-echo=
-echo Input sudoku name  :
-set /p "sudokuName="
-if "%1" == "P" goto saveSudoku
-if "%1" == "S" if not exist "!savePath!%sudokuName%.bat" goto saveSudoku
-echo=
-echo Sudoku file with that name exist
-echo Overwrite sudoku?
-set /p "userInput=Y/N? "
-if /i "%userInput%" == "N" goto sudokuNameIn
-if /i "%userInput%" == "Y" goto saveSudoku
-echo=
-echo Invalid choice
-pause
-goto sudokuNameIn
-:saveSudoku [Location] [ShowInfo] [Type] [PuzzleArray] [Type] [AnswerArray] [Type] [SaveArray]
-set "pathUsed=!dataPath!"
-if "%1" == "P" set "pathUsed=!puzzlePath!"
-if "%1" == "S" set "pathUsed=!savePath!"
-if not exist "%pathUsed%" md "%pathUsed%"
-if /i "%3" == "M" if not "%4" == "" call :matrix toArray %4 saveArray1
-if /i "%5" == "M" if not "%6" == "" call :matrix toArray %6 saveArray2
-if /i "%7" == "M" if not "%8" == "" call :matrix toArray %8 saveArray3
-if /i "%3" == "A" set "saveArray1=!%4!"
-if /i "%5" == "A" set "saveArray2=!%6!"
-if /i "%7" == "A" set "saveArray3=!%8!"
-if not defined saveArray1 set "saveArray1= "
-if not defined saveArray2 set "saveArray2= "
-if not defined saveArray3 set "saveArray3= "
-set "saveActionLog=%actionLog%"
-set "saveActionNum=%actionNum%"
-set "return=2"
-if "%saveArray1%%saveArray2%%saveArray3%" == "" goto saveNothing
-set "return=1"
-if not defined sudokuName set "sudokuName=@%date:~10,4%%date:~4,2%%date:~7,2%_%time:~0,2%%time:~3,2%%time:~6,2%"
-for /l %%n in (1,1,3) do if defined saveArray%%n set "saveArray%%n=!saveArray%%n: =0!"
-if "%1" == "P" (
-    echo #sudoku !sudokuBlockWidth!x!sudokuBlockHeight! !sudokuName!
-    echo=!saveArray1!_!saveArray2!_!saveArray3!
-) >> "%pathUsed%!sudokuName!"
-if "%1" == "S" (
-    if not "%saveArray1%" == "" echo set "selectedPuzzleArray=%saveArray1%"
-    if not "%saveArray2%" == "" echo set "selectedAnswerArray=%saveArray2%"
-    if not "%saveArray3%" == "" echo set   "selectedSaveArray=%saveArray3%"
-) > "%pathUsed%%sudokuName%.bat"
-if "%1" == "P" if not exist "%pathUsed%!sudokuName!" goto saveError
-if "%1" == "S" if not exist "%pathUsed%%sudokuName%.bat" goto saveError
-set "return=0"
-if /i "%2" == "N" goto :EOF
-echo Save success: Save as [%sudokuName%]
-pause
-goto :EOF
-:saveError
-if /i "%2" == "N" goto :EOF
-echo Save failed: Cannot write data to file, saved to memory
-pause
-goto :EOF
-:saveNothing
-if /i "%2" == "N" goto :EOF
-echo Save failed: All sudoku arrays are empty, nothing to save...
-pause
-goto :EOF
-
-:loadSudoku
-if "%sudokuSaveArray%%saveArray3%" == "" goto loadNothing
-set "loadArray=%sudokuSaveArray%"
-if defined saveArray3 set "loadArray=%saveArray3%"
-call :checkValidArray loadArray
-call :matrix create sudokuPlayMatrix loadArray
-set "actionLog=%saveActionLog%"
-set "actionNum=%saveActionNum%"
-goto :EOF
-:loadNothing
-echo Load failed: No save data found
-pause
-goto :EOF
-
-rem Functions
-
-:checkDuplicate
-set "sudokuErrorNum=0"
-set "cellInvalidList="
-set "count=0"
-for %%r in (%rowCode%) do (
-    for /l %%n in (1,1,%sudokuSize%) do set "count%%n=0"
-    for /l %%c in (1,1,%sudokuSize%) do set /a count!%1%%r%%c!+=1
-    for /l %%n in (1,1,%sudokuSize%) do if !count%%n! GTR 1 (
-        for /l %%c in (1,1,%sudokuSize%) do if "!%1%%r%%c!" == "%%n" set "cellInvalidList=!cellInvalidList! %%r%%c"
-    )
-)
-for /l %%c in (1,1,%sudokuSize%) do (
-    for /l %%n in (1,1,%sudokuSize%) do set "count%%n=0"
-    for %%r in (%rowCode%) do set /a count!%1%%r%%c!+=1
-    for /l %%n in (1,1,%sudokuSize%) do if !count%%n! GTR 1 (
-        for %%r in (%rowCode%) do if "!%1%%r%%c!" == "%%n" set "cellInvalidList=!cellInvalidList! %%r%%c"
-    )
-)
-for /l %%b in (1,1,%sudokuSize%) do (
-    for /l %%n in (1,1,%sudokuSize%) do set "count%%n=0"
-    for %%r in (!block%%bRow!) do for %%c in (!block%%bCol!) do set /a count!%1%%r%%c!+=1
-    for /l %%n in (1,1,%sudokuSize%) do if !count%%n! GTR 1 (
-        for %%r in (!block%%bRow!) do for %%c in (!block%%bCol!) do (
-            if "!%1%%r%%c!" == "%%n" set "cellInvalidList=!cellInvalidList! %%r%%c"
-        )
-    )
-)
-set /a cellEmptyNum=%count%/3
-set "count="
-set "tempVar1= !cellInvalidList!"
-set "cellInvalidList="
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do (
-        if not "!tempVar1:%%r%%c=!" == "!tempVar1!" (
-            set /a sudokuErrorNum+=1
-            set "cellInvalidList=!cellInvalidList! %%r%%c"
-        )
-    )
-)
-goto :EOF
-
-:generateSudoku [Matrix] [Stop]
-set "saveStateData=X"
-set "previousValue=0"
-set "solutionCount=0"
-set "previousValue=0"
-set "solvedCells=0"
-set "cellEmptyNum=%sudokuArea%"
-set "time3=%time%"
-call :matrix clear %1
-call :showPossibilities %1
-set /a "tempVar1=%sudokuArea%*15/100 + 1"
-set "guessesNum=!tempVar1!"
-for /l %%n in (1,1,%tempVar1%) do (
-    title Sudoku !scriptVersion! - Prepaing... [%%n/%tempVar1%]
-    call :cellRandom %1 Y
-    set "tempVar1=!cellCode:~0,1!"
-    for %%r in (!tempVar1!) do for %%c in (!cellCode:~1!) do (
-        for /l %%l in (%sudokuSize%,-1,0) do if "!possibilities%%r%%c:~%%l,1!" == "" set "tempVar1=%%l"
-        set /a tempVar1=!random! %% !tempVar1!
-        for %%l in (!tempVar1!) do set "%1%%r%%c=!possibilities%%r%%c:~%%l,1!"
-        for %%e in (!%1%%r%%c!) do for %%s in (!block%%r%%c!) do (
-            for %%y in (!block%%sRow!) do for %%x in (!block%%sCol!) do if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-            for %%y in (!eliminateRow%%s!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-            for %%x in (!eliminateCol%%s!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-            set "possibilities%%r%%c=%%e"
-        )
-        call :matrix toArray %1 saveArray
-        set "saveStateData=!saveStateData!!saveArray!!%1%%r%%c!"
-    )
-)
-set "ansSeed=%saveArray%"
-call :bruteforceSolve %1 N %2
-if "%solutionCount%" == "1" goto :EOF
-echo !clearLine!Bad seed detected, repeating...
-goto generateSudoku
-
-:bruteforceSudoku [Matrix] [SolutionCount] [Stop]
-set "solutionCount=0"
-set "guessesNum=0"
-set "saveStateData=X"
-set "previousValue=0"
-set "time3=%time%"
-set "solvedCells=0"
-set "cellEmptyNum=%sudokuArea%"
-:bruteforceSolve [Matrix] [SolutionCount] [Stop]
-set "tempVar1=0"
-set "return="
-for %%t in (%time% %time3%) do (
-    for /f "tokens=1-4 delims=:." %%a in ("%%t") do set /a  tempVar1+=24%%a %% 24 *360000+1%%b*6000+1%%c*100+1%%d-610100
-    set /a tempVar1*=-1
-)
-if %tempVar1% LSS 0 set /a return+=8640000
-for %%n in (360000 6000 100 1) do (
-    set /a tempVar2=!tempVar1! / %%n
-    set /a tempVar1=!tempVar1! %% %%n
-    set "tempVar2=T0!tempVar2!"
-    set "return=!return!!tempVar2:~-2,2!:"
-)
-set "return=%return:~0,-4%.%return:~-3,2%"
-set /a tempVar1=%solvedCells% * 100 / %cellEmptyNum%
-title Sudoku !scriptVersion! - [%return%] Progress #%guessesNum%: %tempVar1%%% ^| Found %solutionCount% solutions
-
-call :solveSudoku %1
-if not "%sudokuErrorNum%" == "0" goto bruteforceBack
-if "%solvedCells%" == "%cellEmptyNum%" goto bruteforceSolved
-:bruteforceNext
-set "lpNum=%sudokuSize%"
-for %%r in (%rowCode%) do for /l %%c in (1,1,%sudokuSize%) do (
-    if "!%1%%r%%c!" == " " for %%l in (!lpNum!) do if "!possibilities%%r%%c:~%%l,1!" == "" (
-        set "cellCode=%%r%%c"
-        for /l %%n in (1,1,8) do if not "!possibilities%%r%%c:~%%n,1!" == "" set "lpNum=%%n"
-    )
-)
-set "nextValue="
-set "tempVar1=!possibilities%cellCode%!"
-for /l %%n in (1,1,%sudokuSize%) do set "tempVar1=!tempVar1:%%n= %%n!"
-for %%n in (!tempVar1!) do if not defined nextValue if %%n GTR %previousValue% set "nextValue=%%n"
-if not defined nextValue goto bruteforceBack
-set "saveArray="
-for %%r in (%rowCode%) do for /l %%c in (1,1,%sudokuSize%) do set "saveArray=!saveArray!!%1%%r%%c!"
-set "previousValue=0"
-set "%1%cellCode%=%nextValue%"
-set "saveStateData=%saveStateData%%saveArray%%nextValue%"
-set /a guessesNum+=1
-goto bruteforceSolve
-:bruteforceSolved
-set /a solutionCount+=1
-call :matrix toArray %1 sudokuAnswerArray%solutionCount%
-if "%solutionCount%" == "1" (
-    call :Time_Subtract %time3% %time%
-    call :Time_CS_Format !return!
-    set "solution1Time=!return!"
-    set "solution1Guess=%guessesNum%"
-)
-if /i "%2" == "N" goto bruteforceEnd
-if /i "%2" == "C" if "%solutionCount%" == "2" goto bruteforceEnd
-if "%solutionCount%" == "%solutionCountMax%" goto bruteforceEnd
-:bruteforceBack
-if "%saveStateData:~-1,1%" == "X" goto bruteforceEnd
-set "previousValue=%saveStateData:~-1,1%"
-set "saveStateData=%saveStateData:~0,-1%"
-set "saveArray=!saveStateData:~-%sudokuArea%,%sudokuArea%!"
-set "saveStateData=!saveStateData:~0,-%sudokuArea%!"
-
-set "tempVar1=%saveArray%"
-for %%r in (%rowCode%) do for /l %%c in (1,1,%sudokuSize%) do (
-    set "%1%%r%%c=!tempVar1:~0,1!"
-    set "tempVar1=!tempVar1:~1!"
-)
-
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do if "!%1%%r%%c!" == " " (
-        set "possibilities%%r%%c=%allNumList%"
-    ) else set "possibilities%%r%%c=!%1%%r%%c!"
-)
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do if not "!%1%%r%%c!" == " " for %%b in (!block%%r%%c!) do for %%e in (!%1%%r%%c!) do (
-        for %%y in (!block%%bRow!) do for %%x in (!block%%bCol!) do (
-            if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-        )
-        for %%y in (!eliminateRow%%b!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-        for %%x in (!eliminateCol%%b!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-        set "possibilities%%r%%c=%%e"
-    )
-)
-if not "%3" == "" if %guessesNum%0 GEQ %30 goto bruteforceEnd
-goto bruteforceNext
-:bruteforceEnd
-call :Time_Subtract %time3% %time%
-call :Time_CS_Format %return%
-set "time2=%return%"
-title Sudoku !scriptVersion!
-if "%solutionCount%" == "0" (
-    set "saveArray=!saveStateData:~1,%sudokuArea%!"
-) else set "saveArray=%sudokuAnswerArray1%"
-call :matrix create %1 saveArray
-goto :EOF
-
-:solveSudoku [Matrix] [UpdateLabel]
-set "sudokuErrorNum=0"
-set "cellInvalidList="
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do if "!%1%%r%%c!" == " " (
-        set "possibilities%%r%%c=%allNumList%"
-    ) else set "possibilities%%r%%c=!%1%%r%%c!"
-)
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do if not "!%1%%r%%c!" == " " for %%b in (!block%%r%%c!) do for %%e in (!%1%%r%%c!) do (
-        for %%y in (!block%%bRow!) do for %%x in (!block%%bCol!) do (
-            if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-        )
-        for %%y in (!eliminateRow%%b!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-        for %%x in (!eliminateCol%%b!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-        set "possibilities%%r%%c=%%e"
-    )
-)
-set "solvedCells=0"
-set "cellEmptyNum=0"
-for %%r in (%rowCode%) do for /l %%c in (1,1,%sudokuSize%) do if "!%1%%r%%c!" == " " set /a cellEmptyNum+=1
-:solveLoop
-rem Check for singles
-set "solvedCellsNow=%solvedCells%"
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do (
-        if "!%1%%r%%c!" == " " (
-            if defined possibilities%%r%%c (
-                if "!possibilities%%r%%c:~1!" == "" (
-                    set /a solvedCells+=1
-                    if not "%2" == "" call :%2 %1 1 !possibilities%%r%%c! %%r%%c
-                    set "%1%%r%%c=!possibilities%%r%%c!"
-                    for %%e in (!%1%%r%%c!) do for %%s in (!block%%r%%c!) do (
-                        for %%y in (!block%%sRow!) do for %%x in (!block%%sCol!) do if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-                        for %%y in (!eliminateRow%%s!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-                        for %%x in (!eliminateCol%%s!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-                        set "possibilities%%r%%c=%%e"
-                    )
-                )
-            ) else (
-                set /a sudokuErrorNum+=1
-                set "cellInvalidList=!cellInvalidList! %%r%%c"
-            )
-        )
-    )
-)
-if "%solvedCells%" == "%cellEmptyNum%" goto :EOF
-if not "%sudokuErrorNum%" == "0" goto :EOF
-if not "%solvedCells%" == "%solvedCellsNow%" goto solveLoop
-
-rem Check for hidden singles
-for %%r in (%rowCode%) do (
-    set "numList=%allNumSpaced%"
-    for /l %%c in (1,1,%sudokuSize%) do for %%n in (!%1%%r%%c!) do set "numList=!numList: %%n=!"
-    for /l %%n in (1,1,%sudokuSize%) do set "count%%n=0"
-    for /l %%c in (1,1,%sudokuSize%) do for %%n in (!numList!) do (
-        if defined possibilities%%r%%c (
-            if not "!possibilities%%r%%c:%%n=!" == "!possibilities%%r%%c!" set /a count%%n+=1
-        ) else (
-            set /a sudokuErrorNum+=1
-            set "cellInvalidList=!cellInvalidList! %%r%%c"
-        )
-    )
-    for %%n in (!numList!) do if "!count%%n!" == "1" (
-        for /l %%c in (1,1,%sudokuSize%) do if not "!possibilities%%r%%c:%%n=!" == "!possibilities%%r%%c!" (
-            set /a solvedCells+=1
-            if not "%2" == "" call :%2 %1 1r %%n %%r%%c
-            set "%1%%r%%c=%%n"
-            for %%e in (!%1%%r%%c!) do for %%s in (!block%%r%%c!) do (
-                for %%y in (!block%%sRow!) do for %%x in (!block%%sCol!) do if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-                for %%y in (!eliminateRow%%s!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-                for %%x in (!eliminateCol%%s!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-                set "possibilities%%r%%c=%%e"
-            )
-        )
-    )
-)
-for /l %%c in (1,1,%sudokuSize%) do (
-    set "numList=%allNumSpaced%"
-    for %%r in (%rowCode%) do for %%n in (!%1%%r%%c!) do set "numList=!numList: %%n=!"
-    for /l %%n in (1,1,%sudokuSize%) do set "count%%n=0"
-    for %%r in (%rowCode%) do for %%n in (!numList!) do (
-        if defined possibilities%%r%%c (
-            if not "!possibilities%%r%%c:%%n=!" == "!possibilities%%r%%c!" set /a count%%n+=1
-        ) else (
-            set /a sudokuErrorNum+=1
-            set "cellInvalidList=!cellInvalidList! %%r%%c"
-        )
-    )
-    for %%n in (!numList!) do if "!count%%n!" == "1" (
-        for %%r in (%rowCode%) do if not "!possibilities%%r%%c:%%n=!" == "!possibilities%%r%%c!" (
-            set /a solvedCells+=1
-            if not "%2" == "" call :%2 %1 1c %%n %%r%%c
-            set "%1%%r%%c=%%n"
-            for %%e in (!%1%%r%%c!) do for %%s in (!block%%r%%c!) do (
-                for %%y in (!block%%sRow!) do for %%x in (!block%%sCol!) do if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-                for %%y in (!eliminateRow%%s!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-                for %%x in (!eliminateCol%%s!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-                set "possibilities%%r%%c=%%e"
-            )
-        )
-    )
-)
-for /l %%b in (1,1,%sudokuSize%) do (
-    set "numList=%allNumSpaced%"
-    for %%r in (!block%%bRow!) do for %%c in (!block%%bCol!) do (
-        for %%n in (!%1%%r%%c!) do set "numList=!numList: %%n=!"
-    )
-    for /l %%n in (1,1,%sudokuSize%) do set "count%%n=0"
-    for %%r in (!block%%bRow!) do for %%c in (!block%%bCol!) do for %%n in (!numList!) do (
-        if defined possibilities%%r%%c (
-            if not "!possibilities%%r%%c:%%n=!" == "!possibilities%%r%%c!" set /a count%%n+=1
-        ) else (
-            set /a sudokuErrorNum+=1
-            set "cellInvalidList=!cellInvalidList! %%r%%c"
-        )
-    )
-    for %%n in (!numList!) do if "!count%%n!" == "1" (
-        for %%r in (!block%%bRow!) do for %%c in (!block%%bCol!) do (
-            if not "!possibilities%%r%%c:%%n=!" == "!possibilities%%r%%c!" (
-                set /a solvedCells+=1
-                if not "%2" == "" call :%2 %1 1b %%n %%r%%c
-                set "%1%%r%%c=%%n"
-                for %%e in (!%1%%r%%c!) do for %%s in (!block%%r%%c!) do (
-                    for %%y in (!block%%sRow!) do for %%x in (!block%%sCol!) do if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-                    for %%y in (!eliminateRow%%s!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-                    for %%x in (!eliminateCol%%s!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-                    set "possibilities%%r%%c=%%e"
-                )
-            )
-        )
-    )
-)
-if "%solvedCells%" == "%cellEmptyNum%" goto :EOF
-if not "%sudokuErrorNum%" == "0" goto :EOF
-if not "%solvedCells%" == "%solvedCellsNow%" goto solveLoop
-goto :EOF
-rem Check for pairs
-rem Pairs
-rem 2 Candidates unique in row / col / block
-rem Triples
-rem 3 Candidates found on 3 cells
-
-
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do for /l %%x in (1,1,%sudokuSize%) do if not "%%c" == "%%x" (
-        if "!possibilities%%r%%c!" == "!possibilities%%r%%x!" (
-            if not "%2" == "" call :%2 %1 2p !possibilities%%r%%x! %%r%%c %%r%%x
-            call :possibilitiesEliminate %1 %%r %%c !%1%%r%%c!
-            rem Eliminate the rest in row
-        )
-    )
-)
-for /l %%c in (1,1,%sudokuSize%) do (
-    for %%r in (%rowCode%) do for %%y in (%rowCode%) do if not "%%r" == "%%y" (
-        if "!possibilities%%r%%c!" == "!possibilities%%y%%c!" (
-            if not "%2" == "" call :%2 %1 2p !possibilities%%r%%x! %%r%%c %%y%%c
-        )
-    )
-)
-for /l %%b in (1,1,%sudokuSize%) do (
-    for %%r in (!block%%bRow!) do for %%c in (!block%%bCol!) do (
-        for %%y in (!block%%bRow!) do for %%x in (!block%%bCol!) do (
-            if "%%r%%c" == "%%y%%x" if "!possibilities%%r%%c!" == "!possibilities%%y%%x!" (
-                if not "%2" == "" call :%2 %1 2p !possibilities%%r%%x! %%r%%c %%y%%c
-            )
-        )
-    )
-)
-if "%solvedCells%" == "%cellEmptyNum%" goto :EOF
-if not "%sudokuErrorNum%" == "0" goto :EOF
-if not "%solvedCells%" == "%solvedCellsNow%" goto solveLoop
-goto :EOF
-
-:possibilitiesEliminate [Matrix] [Row] [Col] [Num]
-for %%e in () do for %%s in (!block%%r%%c!) do (
-    for %%y in (!block%%sRow!) do for %%x in (!block%%sCol!) do if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-    for %%y in (!eliminateRow%%s!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-    for %%x in (!eliminateCol%%s!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-    set "possibilities%%r%%c=%%e"
-)
-goto :EOF
-:showPossibilities
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do if "!%1%%r%%c!" == " " (
-        set "possibilities%%r%%c=%allNumList%"
-    ) else set "possibilities%%r%%c=!%1%%r%%c!"
-)
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do if not "!%1%%r%%c!" == " " for %%b in (!block%%r%%c!) do for %%e in (!%1%%r%%c!) do (
-        for %%y in (!block%%bRow!) do for %%x in (!block%%bCol!) do (
-            if defined possibilities%%y%%x set "possibilities%%y%%x=!possibilities%%y%%x:%%e=!
-        )
-        for %%y in (!eliminateRow%%b!) do if defined possibilities%%y%%c set "possibilities%%y%%c=!possibilities%%y%%c:%%e=!
-        for %%x in (!eliminateCol%%b!) do if defined possibilities%%r%%x set "possibilities%%r%%x=!possibilities%%r%%x:%%e=!
-        set "possibilities%%r%%c=%%e"
-    )
-)
-goto :EOF
-
-:possibilitiesStats
-for /l %%n in (1,1,%sudokuSize%) do set "possibilities%%n=0"
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do (
-        for /l %%n in (%sudokuSize%,-1,0) do if "!possibilities%%r%%c:~%%n,1!" == "" set "tempVar1=%%n"
-        set /a possibilities!tempVar1!+=1
-    )
-)
-goto :EOF
-
-:checkValidMatrix [Type] [MatrixName]
-call :checkDuplicate %2
-set /a tempVar1=%sudokuArea% - %sudokuArea%*20/100
-if %cellEmptyNum% GEQ %tempVar1% set /a sudokuErrorNum+=1
-rem Detect too few givens for each number is missing...
-if /i "%1" == "A" if not "%cellEmptyNum%" == "0" set /a sudokuErrorNum+=1
-goto :EOF
-
-:checkValidArray
-set "return=0"
-for %%c in (0 . _) do set "%1=!%1:%%c= !"
-set "tempVar1=!%1: =0!"
-for /l %%c in (1,1,%sudokuSize%) do set "tempVar1=!tempVar1:%%c=0!"
-set "tempVar2="
-for /l %%n in (1,1,%sudokuArea%) do set "tempVar2=!tempVar2!0"
-if "%tempVar1%" == "%tempVar2%" goto :EOF
-set "return=1"
-goto :EOF
-
-:matrix
-set "return=0"
-if /i "%1" == "create"  (
-    set "tempVar1=!%3!"
-    for %%c in (0 . _) do set "tempVar1=!tempVar1:%%c= !"
-)
-if /i "%1" == "toArray" set "%3="
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do (
-        if /i "%1" == "create" (
-            set "%2%%r%%c=!tempVar1:~0,1!"
-            set "tempVar1=!tempVar1:~1!"
-        )
-        if /i "%1" == "copy"    set "%3%%r%%c=!%2%%r%%c!"
-        if /i "%1" == "clear"   set "%2%%r%%c= "
-        if /i "%1" == "delete"  set "%2%%r%%c="
-        if /i "%1" == "toArray" set "%3=!%3!!%2%%r%%c!"
-        if /i "%1" == "find" (
-            if "!%3%%r%%c!" == "%2" set /a return+=1
-            if "!%3%%r%%c!%2" == " 0" set /a return+=1
-        )
-        if /i "%1" == "swap" for %%n in (!%4%%r%%c!) do (
-            if "%%n" == "%2" set "%4%%r%%c=%3"
-            if "%%n" == "%3" set "%4%%r%%c=%2"
-        )
-        if /i "%1" == "compare" if not "!%2%%r%%c!" == "!%3%%r%%c!" (
-            if not "!%2%%r%%c!" == " " set /a return+=1
-        )
-    )
-)
-if /i "%1,%2" == "find,0" set "cellEmptyNum=%return%"
-goto :EOF
-
-:array
-set "return=0"
-set /a tempVar1=%sudokuArea%-1
-for /l %%n in (0,1,%tempVar1%) do (
-    if /i "%1" == "compare" if not "!%2:~%%n,1!" == "!%3:~%%n,1!" (
-        if not "!%2:~%%n,1!" == " " set /a return+=1
-    )
-)
-goto :EOF
-
-:cellMove
-for /l %%n in (1,1,%sudokuSize%) do if "!alphabetList:~%%n,1!" == "%cellCode:~0,1%" set /a cellCodeNum=%%n * %sudokuSize% + %cellCode:~1% - %sudokuSize%
-set /a tempVar1=%cellCodeNum% %% %sudokuSize%
-if /i "%1%tempVar1%" == "L1" goto :EOF
-if /i "%1%tempVar1%" == "R0" goto :EOF
-if /i "%1" == "U" set /a cellCodeNum-=%sudokuSize%
-if /i "%1" == "L" set /a cellCodeNum-=1
-if /i "%1" == "D" set /a cellCodeNum+=%sudokuSize%
-if /i "%1" == "R" set /a cellCodeNum+=1
-if /i "%1" == "N" set /a cellCodeNum+=1
-if /i "%1" == "P" set /a cellCodeNum-=1
-if %cellCodeNum% LSS 1 goto :EOF
-if %cellCodeNum% GTR %sudokuArea% goto :EOF
-set /a cellCode=%cellCodeNum% %% %sudokuSize%
-if "%cellCode%" == "0" set "cellCode=%sudokuSize%"
-set /a cellCodeNum+= %sudokuSize% - 1
-set /a cellCodeNum/=%sudokuSize%
-for /l %%n in (1,1,%sudokuSize%) do if "%%n" == "%cellCodeNum%" set "cellCode=!alphabetList:~%%n,1!%cellCode%"
-goto :EOF
-
-:randCellList [Matix_Name] [Filled / Empty] [Number]
-set "cellList="
-set "tempList="
-set "listCount="
-for %%r in (!rowCode!) do (
-    for /l %%c in (1,1,!sudokuSize!) do (
-        if "!%1%%r%%c!" == " " (
-            if /i "%2" == "/e" (
-                set "tempList=!tempList!%%r%%c"
-                set /a "listCount+=1"
-            )
-        ) else if /i "%2" == "/f" (
-            set "tempList=!tempList!%%r%%c"
-            set /a "listCount+=1"
-        )
-    )
-)
-set "tempVar1=1"
-if not "%3" == "" set /a "tempVar1=!listCount! - %3 + 1"
-for /l %%l in (!listCount!,-1,!tempVar1!) do (
-    set /a "tempVar1=!random! %% %%l"
-    set /a "tempVar1*=2"
-    for %%n in (!tempVar1!) do (
-        set "cellList=!cellList! !tempList:~%%n,2!"
-        set "tempList=!tempList:~%%n!!tempList:~0,%%n!"
-        set "tempList=!tempList:~2!"
-    )
-)
-goto :EOF
-
-:cellRandom [Matrix] [Empty]
-set /a cellCode=(%random% %% %sudokuSize% + 1) * 10 + %random% %% %sudokuSize% + 1
-set "cellCode=!alphabetList:~%cellCode:~0,1%,1!%cellCode:~1%"
-if /i "%2" == "Y" if not "!%1%cellCode%!" == " " goto cellRandom
-if /i "%2" == "N" if "!%1%cellCode%!" == " " goto cellRandom
-goto :EOF
-
-:actionReset
-set "actionNum=0"
-set "actionLog=0000"
-goto :EOF
-:actionMark [matrixName] [cellCode] [number]
-set "actionLog=!actionLog!%2!%1%2!%3"
-set "%1%2=%3"
-if "%3" == "0" set "%1%2= "
-set /a actionNum+=1
-goto :EOF
-:actionUndo [matrixName]
-if "%actionNum%" == "0" goto :EOF
-set "%1%actionLog:~-4,2%=%actionLog:~-2,1%"
-set "actionLog=%actionLog:~0,-4%"
-set /a actionNum-=1
-goto :EOF
-
-:boardTextClear
-for /l %%n in (1,1,20) do set "boardText%%n="
-goto :EOF
-
-:sudokuInfo
-call :matrix find 0 %1
-set /a cellGivenNum= %sudokuArea% - %cellEmptyNum%
-call :boardTextClear
-call :matrix copy %1 sudokuRateMatrix
-call :solveSudoku sudokuRateMatrix
-set "sudokuLevel=1"
-if not "%solvedCells%" == "%cellEmptyNum%" set "sudokuLevel=2"
-if not "%sudokuErrorNum%" == "0" set "sudokuLevel=E"
-rem              1234567890123456789012345678901234567"
-set  "boardText1=Sudoku Puzzle Informations"
-set  "boardText3=Name           : %sudokuName:~0,20%"
-set  "boardText4=                 %sudokuName:~20%"
-set  "boardText5=Givens         : %cellGivenNum%"
-set  "boardText6=Level          : %sudokuLevel%"
-goto :EOF
-
-:logUpdate
-call :boardTextClear
-set  "boardText1=ษออออออออLOGSออออออออป"
-set "tempVar1=%actionLog:~-40,40%"
-for /l %%n in (2,1,11) do (
-    if not "!tempVar1:~-4,4!" == "0000" (
-        set  "boardText%%n=บ  [!tempVar1:~-4,2!]  '!tempVar1:~-2,1!' to '!tempVar1:~-1,1!'  บ"
-        set "tempVar1=!tempVar1:~0,-4!"
-    ) else set  "boardText%%n=บ                    บ"
-)
-set "boardText12=สออออออออออออออออออออผ"
-goto :EOF
-
-:sudokuBoard
-echo %boardDisplay1%   %boardText1%
-set "display=%boardDisplay2%"
-set "tempVar2=2"
-for /l %%s in (1,1,%sudokuSize%) do (
-    set "tempVar1=!alphabetList:~%%s,1!"
-    for %%r in (!tempVar1!) do (
-        for %%b in (!tempVar2!) do echo !display!   !boardText%%b!
-        set /a tempVar2+=1
-        set "display=%%r บ"
-        set "colNum=1"
-        for /l %%h in (1,1,%sudokuBlockHeight%) do (
-            for /l %%w in (1,1,%sudokuBlockWidth%) do (
-                for %%c in (!colNum!) do set "display=!display! !%1%%r%%c! ณ"
-                set /a colNum+=1
-            )
-            set "display=!display:~0,-1!บ"
-        )
-        for %%b in (!tempVar2!) do echo !display:~0,-1!บ   !boardText%%b!
-        set /a tempVar2+=1
-        set /a tempVar1=%%s %% %sudokuBlockHeight%
+:displayCandidates
+rem !candidateColor!
+pushd "!tempPath!"
+for /l %%i in (1,1,!sideLength!) do (
+    set /p "=!base!!alphabets:~%%i,1! !vBorder!" < nul
+    for /l %%j in (1,1,!sideLength!) do (
+        if "!useColor!" == "true" (
+            set /p "=!BS!!BS!" < nul > "!%1_%%i-%%j!_" 2> nul
+            findstr /l /v /a:!GUI_color_%%i-%%j! "." "!%1_%%i-%%j!_" nul 2> nul
+        ) else set /p "=!base!!%1_%%i-%%j!" < nul
+        set /a "tempVar1=%%j %% !blockWidth!"
         if "!tempVar1!" == "0" (
-            set "display=%boardDisplay4%"
-        ) else set "display=%boardDisplay3%"
+            set /p "=!base!!vBorder!" < nul
+        ) else set /p "=!base!!vGrid!" < nul
+    )
+    echo=
+    set /a "tempVar1=%%i %% !blockHeight!"
+    if "!tempVar1!" == "0" echo=
+)
+popd
+goto :EOF
+
+
+:parseSideText
+if "!sideText!" == "!currentText!" goto :EOF
+set "currentText=!sideText!"
+for /l %%n in (1,1,!sideText_height!) do set "sideText%%n="
+if defined sideText (
+    set "newLine=false"
+    set "charCount=0"
+    set "currentLine=1"
+    for /l %%s in (1,1,!sideText_size!) do if defined sideText (
+        if !currentLine! LEQ !sideText_height! for %%n in (!currentLine!) do (
+            if "!sideText:~0,1!" == "\" (
+                set "sideText=!sideText:~1!"
+                if "!sideText:~0,1!" == "n" (
+                    set "newLine=true"
+                ) else set "sideText%%n=!sideText%%n!!sideText:~0,1!"
+            ) else set "sideText%%n=!sideText%%n!!sideText:~0,1!"
+            set /a "charCount+=1"
+            set "sideText=!sideText:~1!"
+            if "!charCount!" == "!sideText_width!" set "newLine=true"
+            if "!newLine!" == "true" (
+                set "charCount=0"
+                set /a "currentLine+=1"
+                set "newLine=false"
+            )
+        )
     )
 )
-echo %boardDisplay5%   !boardText%tempVar2%!
+set "sideText=!currentText!"
 goto :EOF
 
-:sudokuBoardMini
-if "%sudokuBlockWidth%x%sudokuBlockHeight%" == "3x2" goto sudokuBoardMini_3x2
-echo    1 2 3 4 5 6 7 8 9    %boardText1%
-echo   ษอออออหอออออหอออออป   %boardText2%
-echo A บ!%1A1!ณ!%1A2!ณ!%1A3!บ!%1A4!ณ!%1A5!ณ!%1A6!บ!%1A7!ณ!%1A8!ณ!%1A9!บ   %boardText3%
-echo B บ!%1B1!ณ!%1B2!ณ!%1B3!บ!%1B4!ณ!%1B5!ณ!%1B6!บ!%1B7!ณ!%1B8!ณ!%1B9!บ   %boardText4%
-echo C บ!%1C1!ณ!%1C2!ณ!%1C3!บ!%1C4!ณ!%1C5!ณ!%1C6!บ!%1C7!ณ!%1C8!ณ!%1C9!บ   %boardText5%
-echo   ฬอออออฮอออออฮอออออน   %boardText6%
-echo D บ!%1D1!ณ!%1D2!ณ!%1D3!บ!%1D4!ณ!%1D5!ณ!%1D6!บ!%1D7!ณ!%1D8!ณ!%1D9!บ   %boardText7%
-echo E บ!%1E1!ณ!%1E2!ณ!%1E3!บ!%1E4!ณ!%1E5!ณ!%1E6!บ!%1E7!ณ!%1E8!ณ!%1E9!บ   %boardText8%
-echo F บ!%1F1!ณ!%1F2!ณ!%1F3!บ!%1F4!ณ!%1F5!ณ!%1F6!บ!%1F7!ณ!%1F8!ณ!%1F9!บ   %boardText9%
-echo   ฬอออออฮอออออฮอออออน   %boardText10%
-echo G บ!%1G1!ณ!%1G2!ณ!%1G3!บ!%1G4!ณ!%1G5!ณ!%1G6!บ!%1G7!ณ!%1G8!ณ!%1G9!บ   %boardText11%
-echo H บ!%1H1!ณ!%1H2!ณ!%1H3!บ!%1H4!ณ!%1H5!ณ!%1H6!บ!%1H7!ณ!%1H8!ณ!%1H9!บ   %boardText12%
-echo I บ!%1I1!ณ!%1I2!ณ!%1I3!บ!%1I4!ณ!%1I5!ณ!%1I6!บ!%1I7!ณ!%1I8!ณ!%1I9!บ   %boardText13%
-echo   ศอออออสอออออสอออออผ   %boardText14%
+
+:sudokuInfo [Matix_Name]
+call :matrix count %1 " " 
+set /a "cellGivens= !totalCells! - !return!"
+set "sideText=!sideText!Sudoku Puzzle Information\n"
+set "sideText=!sideText!Name    : !selected_name!\n"
+set "sideText=!sideText!Givens  : !cellGivens!\n"
 goto :EOF
 
-:sudokuBoardMini_3x2
-echo    1 2 3 4 5 6    %boardText1%
-echo   ษอออออหอออออป   %boardText2%
-echo A บ!%1A1!ณ!%1A2!ณ!%1A3!บ!%1A4!ณ!%1A5!ณ!%1A6!บ   %boardText3%
-echo B บ!%1B1!ณ!%1B2!ณ!%1B3!บ!%1B4!ณ!%1B5!ณ!%1B6!บ   %boardText4%
-echo   ฬอออออฮอออออน   %boardText5%
-echo C บ!%1C1!ณ!%1C2!ณ!%1C3!บ!%1C4!ณ!%1C5!ณ!%1C6!บ   %boardText6%
-echo D บ!%1D1!ณ!%1D2!ณ!%1D3!บ!%1D4!ณ!%1D5!ณ!%1D6!บ   %boardText7%
-echo   ฬอออออฮอออออน   %boardText8%
-echo E บ!%1E1!ณ!%1E2!ณ!%1E3!บ!%1E4!ณ!%1E5!ณ!%1E6!บ   %boardText9%
-echo F บ!%1F1!ณ!%1F2!ณ!%1F3!บ!%1F4!ณ!%1F5!ณ!%1F6!บ   %boardText10%
-echo   ศอออออสอออออผ   %boardText14%
-goto :EOF
+rem ======================================== Functions ========================================
 
-:possibilityBoard
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do (
-        set "%1%%r%%c=         !%1%%r%%c!"
-        set "%1%%r%%c=!%1%%r%%c:~-%sudokuSize%,%sudokuSize%!"
-    )
-)
-echo        1         2         3         4         5         6         7         8         9 
-echo   ษอออออออออออออออออออออออออออออหอออออออออออออออออออออออออออออหอออออออออออออออออออออออออออออป
-echo A บ!%1A1!ณ!%1A2!ณ!%1A3!บ!%1A4!ณ!%1A5!ณ!%1A6!บ!%1A7!ณ!%1A8!ณ!%1A9!บ
-echo B บ!%1B1!ณ!%1B2!ณ!%1B3!บ!%1B4!ณ!%1B5!ณ!%1B6!บ!%1B7!ณ!%1B8!ณ!%1B9!บ
-echo C บ!%1C1!ณ!%1C2!ณ!%1C3!บ!%1C4!ณ!%1C5!ณ!%1C6!บ!%1C7!ณ!%1C8!ณ!%1C9!บ
-echo   ฬอออออออออออออออออออออออออออออฮอออออออออออออออออออออออออออออฮอออออออออออออออออออออออออออออน
-echo D บ!%1D1!ณ!%1D2!ณ!%1D3!บ!%1D4!ณ!%1D5!ณ!%1D6!บ!%1D7!ณ!%1D8!ณ!%1D9!บ
-echo E บ!%1E1!ณ!%1E2!ณ!%1E3!บ!%1E4!ณ!%1E5!ณ!%1E6!บ!%1E7!ณ!%1E8!ณ!%1E9!บ
-echo F บ!%1F1!ณ!%1F2!ณ!%1F3!บ!%1F4!ณ!%1F5!ณ!%1F6!บ!%1F7!ณ!%1F8!ณ!%1F9!บ
-echo   ฬอออออออออออออออออออออออออออออฮอออออออออออออออออออออออออออออฮอออออออออออออออออออออออออออออน
-echo G บ!%1G1!ณ!%1G2!ณ!%1G3!บ!%1G4!ณ!%1G5!ณ!%1G6!บ!%1G7!ณ!%1G8!ณ!%1G9!บ
-echo H บ!%1H1!ณ!%1H2!ณ!%1H3!บ!%1H4!ณ!%1H5!ณ!%1H6!บ!%1H7!ณ!%1H8!ณ!%1H9!บ
-echo I บ!%1I1!ณ!%1I2!ณ!%1I3!บ!%1I4!ณ!%1I5!ณ!%1I6!บ!%1I7!ณ!%1I8!ณ!%1I9!บ
-echo   สอออออออออออออออออออออออออออออสอออออออออออออออออออออออออออออสอออออออออออออออออออออออออออออผ
-for %%r in (%rowCode%) do (
-    for /l %%c in (1,1,%sudokuSize%) do (
-        set "%1%%r%%c=.!%1%%r%%c!"
-        set "%1%%r%%c=!%1%%r%%c: =!"
-        set "%1%%r%%c=!%1%%r%%c:~1!"
-    )
-)
-goto :EOF
-
-:Time_Subtract [Start Time] [End Time] [Setting]
-rem 0 - Returns non-adjusted value
-rem 1 - Fix if the start time is the end time 
-rem Format  : HH:MM:SS.CS
+:strlen [variable_name]
 set "return=0"
-for %%t in (%2 %1) do (
-    for /f "tokens=1-4 delims=:." %%a in ("%%t") do set /a  return+=24%%a %% 24 *360000+1%%b*6000+1%%c*100+1%%d-610100
+if defined %1 (
+    for %%n in (4096 2048 1024 512 256 128 64 32 16 8 4 2 1) do (
+        set /a return+=%%n
+        for %%l in (!return!) do if "!%1:~%%l,1!" == "" set /a return-=%%n
+    )
+    set /a return+=1
+)
+goto :EOF
+
+
+:difftime [end_time] [start_time] [/n]
+set "return=0"
+for %%t in (%1:00:00:00:00 %2:00:00:00:00) do (
+    for /f "tokens=1-4 delims=:." %%a in ("%%t") do (
+        set /a return+=24%%a %% 24 *360000+1%%b*6000+1%%c*100+1%%d-610100
+    )
     set /a return*=-1
 )
-if %return% LSS 0 (
-    if "%3" == "1" set /a return*=-1
-    if not "%3" == "0" set /a return+=8640000
-)
+if not "%3" == "/n" if !return! LSS 0 set /a return+=8640000
 goto :EOF
 
-:Time_CS_Format [Time in CS] [Setting]
-rem 0 - Returns negative time
-rem TempVar: 1-2
-set "return="
+
+:ftime [time_in_centisecond]
 set /a tempVar1=%1 %% 8640000
-if "%3" == "0" if %1 LSS 0 (
-    set "return=-"
-    set /a tempVar1*=-1
-)
+set "return="
 for %%n in (360000 6000 100 1) do (
     set /a tempVar2=!tempVar1! / %%n
     set /a tempVar1=!tempVar1! %% %%n
-    set "tempVar2=T0!tempVar2!"
+    set "tempVar2=?0!tempVar2!"
     set "return=!return!!tempVar2:~-2,2!:"
 )
-set "return=%return:~0,-4%.%return:~-3,2%"
+set "return=!return:~0,-4!.!return:~-3,2!"
 goto :EOF
 
 
-rem ==================== SUDOKU LISTS ====================
+:sleep [milliseconds]
+set /a "return=!loopSpeed! * %* / 10"
+for /l %%n in (1,1,!return!) do call
+goto :EOF
 
-:genInfo
-cls
-set "saveFile=!dataPath!%sudokuBlockWidth%x%sudokuBlockHeight%\Solved.txt"
-set "sudokuCount=0"
-set "sudokuPuzzleArray="
-set "sudokuAnswerArray="
-set "sudokuSaveArray="
-set "startTime=%time%"
-echo= >> %saveFile%
-for %%s in (
-    ........8....89.....67...4.3...6.7.......4.1.56.2....48.3.....1.54....7.2...359.._25_1_2/8 
-    .1...9...2.4.....8...3.............2.4.5....9..5.7416.32..5.......6....5.897..2.._24_1_1/2 
-) do for /f "tokens=1-2 delims=_" %%a in ("%%s") do call :genInfo_Solve %%a
-call :Time_Subtract %startTime% %time%
-call :Time_CS_Format %return%
-echo=
-echo Solved %sudokuCount% sudoku in %return%
-echo=
-pause
-goto sudokuMenu
+
+:speedtest
+if not defined loopSpeed set "loopSpeed=300"
+for /l %%n in (1,1,12) do (
+    set "tempVar1=!time!"
+    call :sleep 50 * 10
+    (
+        set "return=0"
+        for %%t in (!time!:00:00:00:00 !tempVar1!:00:00:00:00) do (
+            for /f "tokens=1-4 delims=:." %%a in ("%%t") do (
+                set /a "return+=24%%a %% 24 *360000+1%%b*6000+1%%c*100+1%%d-610100"
+            )
+            set /a "return*=-1"
+        )
+        if !return! LSS 0 set /a "return+=8640000"
+    )
+    if "!return!" == "50" goto :EOF
+    set /a "loopSpeed=!loopSpeed! * 50 / !return!"
+)
+goto :EOF
+
+
+:countVariables
+set "return=0"
+for /f "usebackq tokens=*" %%o in (`set`) do set /a "return+=1"
+goto :EOF
+
+
+:displayVariables
+set "return=0"
+for /f "usebackq tokens=*" %%o in (`set`) do set /a "return+=1"
+echo %* ^| Variables : !return!
+pause > nul
+goto :EOF
+
+rem ======================================== Built-in Sudoku ========================================
+
+rem Add new list:
+rem #SUDOKU [Size] [Name]
 
 #sudoku 3x3 Easy
 9.7...1..2..7........2.......6.5..8..2......4.....8.16.....49574..6.3....7.9.....
@@ -1862,50 +2323,55 @@ goto sudokuMenu
 ...3..9..4......6....42...5........9.5...14782.4..61......3....7..65....6....7.8.
 .......1.4.........2...........5.6.4..8...3....1.9....3..4..2...5.1........8.7...
 
-#sudoku 3x3 Hard
+#sudoku 3x3 Medium / Hard
 ........8.3.2........4.5376..1.5..97.8...954....6....2.4.......2....7.396.9......
 .3.29......7.......8.1.32.74....6....2..3......5....8..4.........68..9..5.1.2..6.
 2.....1.5..8.97........3.8..94.....6..5..43.....369.......8..1..4...1.23......6.7
 ......5.6....94.....98.5...3.27......1...2.6.......4.7.8.3.62.5.4...93...........
-
 .1......95......747.....3.....36.....3.....8.4..9..25.9...5......6.97...37.8.4..6
 .......399.485.....75..9......5..6.21...9...7...34.8..8.67.......1...7.3........6
 .......399.485.....75..9......5..6.21...9...7...34.8..8.67.......1...7.3........6
 97..5...2.............18.6.....4..3.45...76.91.6........9...48...718.2......2....
 
+#sudoku 3x3 Escargot
+1....7.9..3..2...8..96..5....53..9...1..8...26....4...3......1..4......7..7...3..
 
-#sudoku 3x2 Easy
-040000000006060045030000002000053600
-000200000034300401500002260000405000 
-000013000600041060000002036000004000 
-100000000003200050001020000005034100 
-
-#sudoku 3x2 Hard
-003000050004305200000400600000004003 
-040100005004010035000000056040000000 
-000001500030001000002600320005000000 
-000000050006000103003040060401002000 
+#sudoku 3x3 Arto Inkala
+8..........36......7..9.2...5...7.......457.....1...3...1....68..85...1..9....4..
 
 #sudoku 3x2 Minimum
-3000000110000002 
-0010000240000003 
-0030030001000020 
-0004020000300100 
-0200100000004010 
-0000300200004100 
-0004030000000041 
-0000034010020000 
-4000000020040010 
-0000400000010320 
-0000300000020103 
-0004300010000002 
-1000002000402000 
-0000420001030000 
-0010000200030400 
-0001003000000320 
-0100000200304000 
-2000000200013000 
-0203000400003000 
-0020030000420000 
+030000000540000000004160000002006000
+006000005010040000000050000420300000
+000000004000010500030400500020000030
+600000000002025000000500000064300000
+000000000032000500200040001600300000
+200000000604000030006400000000300500
+000000032600000300100000450006000000
+300006004000005000000003010540000000
+000003010000600000003500050060000020
+004000000003050020100000003006000050
 
+#sudoku 2x3 Sample
+030000000540000000004160000002006000
+
+#sudoku 2x2 Minimum
+3000000110000002
+0010000240000003
+0030030001000020
+0004020000300100
+0200100000004010
+0000300200004100
+0004030000000041
+0000034010020000
+4000000020040010
+0000400000010320
+
+#sudoku 4x3 Easy
+0B000080090000429007B0011C00000000700080060400000000700000B040C0AB10500020A00C4B000600B0080000A00316000070000001C0000A6780000006030404000A0510C0
+
+#sudoku 4x4 Easy
+02000B9C003E6100E600005400007900C0D4000GF070000000000000D506800000G030000009E000BD0100F9004000507A000000000000D0005ED000BG0000090B0000A010F2D0G0036A00C240000F0000200G0070A00E00000000006000940004005FE000DA00000908023B0FG00A00AG000400C6000B000002C000015400F8
+0080760000005900D060400030000G00000000000000C3009000005010G427FE00GC00E9006015004019030A700D000006005C0GF00000EA000E0B07A000F0203000009E0B800FD700EBC00000050030G00F05000000EA00000D0070090C000060000005C0B030010G0200000148D00000580004D0709000000029F3500E4000
+0D0006000C47900A02G190E060B07F38006000000000CE00B80AC0000000G0506FBC0007010050000G87E0B040600C00000000F0000E0009E0300000900G0100400030002016000080F0000BD0000A1505D02A080703000G0B000000005806ED06000C000A0D0493F0000E90008000D2002000050E008000000000700G040000
 #ENDLIST
+
