@@ -1,17 +1,20 @@
-:__init__ > nul 2> nul
-@goto module.entry_point
+:entry_point
+@goto main
 
-rem ======================================== Metadata ========================================
 
-:metadata   [prefix]
+rem ############################################################################
+rem Metadata
+rem ############################################################################
+
+:metadata [return_prefix]
 set "%~1name=sudoku"
-set "%~1version=3.2.3"
+set "%~1version=3.2.4"
 set "%~1author=wthe22"
 set "%~1license=The MIT License"
 set "%~1description=Sudoku"
-set "%~1release_date=08/17/2019"   :: MM/DD/YYYY
+set "%~1release_date=09/20/2021"   :: MM/DD/YYYY
 set "%~1url=https://winscr.blogspot.com/2013/08/sudoku.html"
-set "%~1download_url=https://gist.githubusercontent.com/wthe22/5eb8acec50840b7a29b197112e4f9dea/raw"
+set "%~1download_url=https://raw.githubusercontent.com/wthe22/batch-scripts/master/sudoku.bat"
 exit /b 0
 
 
@@ -27,46 +30,54 @@ echo Feel free to use, share, or modify this script for your projects :)
 echo Visit http://winscr.blogspot.com/ for more scripts^^!
 echo=
 echo=
-echo Copyright (C) 2019 by !author!
+echo Copyright (C) 2013 by !author!
 echo Licensed under !license!
 endlocal
 exit /b 0
 
-rem ======================================== License ========================================
+
+rem ############################################################################
+rem License
+rem ############################################################################
 
 :license
-echo Copyright 2019 wthe22
+echo MIT License
 echo=
-echo Permission is hereby granted, free of charge, to any person obtaining a 
-echo copy of this software and associated documentation files (the "Software"), 
-echo to deal in the Software without restriction, including without limitation 
-echo the rights to use, copy, modify, merge, publish, distribute, sublicense, 
-echo and/or sell copies of the Software, and to permit persons to whom the 
+echo Copyright 2013 wthe22
+echo=
+echo Permission is hereby granted, free of charge, to any person obtaining a
+echo copy of this software and associated documentation files (the "Software"),
+echo to deal in the Software without restriction, including without limitation
+echo the rights to use, copy, modify, merge, publish, distribute, sublicense,
+echo and/or sell copies of the Software, and to permit persons to whom the
 echo Software is furnished to do so, subject to the following conditions:
 echo=
-echo The above copyright notice and this permission notice shall be included in 
+echo The above copyright notice and this permission notice shall be included in
 echo all copies or substantial portions of the Software.
 echo=
-echo THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
-echo OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-echo FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
-echo AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
-echo LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
-echo FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+echo THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+echo OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+echo FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+echo AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+echo LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+echo FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 echo DEALINGS IN THE SOFTWARE.
 exit /b 0
 
-rem ======================================== Configurations ========================================
+rem ############################################################################
+rem Configurations
+rem ############################################################################
 
 :config
 call :config.default
-call :config.preferences
+call :config.preference
 exit /b 0
 
 
 :config.default
-set "data_path=%~dp0\data\sudoku\"
-set "temp_path=!temp!\BatchScript\Sudoku\"
+rem Default/common configurations. DO NOT MODIFY
+set "data_dir=%~dp0\data\sudoku\"
+set "tmp_dir=!temp!\BatchScript\Sudoku\"
 
 set "default_console_width=80"
 set "default_console_height=25"
@@ -78,39 +89,41 @@ set "use_color=true"   [true, false]
 
 rem See "COLOR /?" for more info
 set   "default_color=07"    Default color for text
-set    "puzzle_color=0E"    Puzzle / Givens 
+set    "puzzle_color=0E"    Puzzle / Givens
 set  "solvings_color=07"    Solvings that user/solver entered
 set "highlight_color=4E"    Highlighted cells in solver
 set "candidate_color=02"    Candidate for answer in solver
 set     "error_color=0C"    Error in solvings
+exit /b 0
 
+
+:config.preference
+rem Configurations to change/override
+:: set "tmp_dir=%~dp0tmp\tmp"
 rem Uncomment this if you have display problems with box character style
-rem set "default_codepage=437"
-
-rem Macros to call external module (use absolute paths)
-set "batchlib="
+:: set "default_codepage=437"
 exit /b 0
 
 
-:config.preferences
-rem Define your preferences or config modifications here
-
-rem Macros to call external module (use absolute paths)
-rem set batchlib="%~dp0batchlib-min.bat" --module=lib %=END=%
-exit /b 0
-
-rem ======================================== Changelog ========================================
+rem ############################################################################
+rem Changelog
+rem ############################################################################
 
 :changelog
-echo    Structure Update
-echo    - Changed data folder name (Data -^> data)
-echo    - Updated Library to version 2.1-a.4
-echo    - Added code to get dependencies for: shortcut, lib, framework
-echo    - Restructured changelong to only include latest changelog
-echo    - Changlog history are now accessed through Git
+::  Library Update and Small Improvements
+::  - Update structure and library to follow batchlib 3.0b3
+::  - Rename variables
+::  - EOL is now Windows so no EOL conversion is needed anymore
+::  - Update download url to point to new repo
+::  - Fix missing prompt message in solver after prompting to bruteforce, when
+::    solver is supposed to prompt for solution count.
+::  - Improve code of boxchar style
 exit /b 0
 
-rem ======================================== Debug functions ========================================
+
+rem ############################################################################
+rem Debug Tool
+rem ############################################################################
 
 :exception.raise
 @echo=
@@ -121,56 +134,37 @@ rem ======================================== Debug functions ===================
 @pause > nul
 @exit
 
-rem ======================================== Main ========================================
 
-:__main__
-@call :scripts.main %*
-@exit %errorlevel%
+rem ############################################################################
+rem Main
+rem ############################################################################
 
-rem ======================================== Scripts/Entry points  ========================================
-
-:scripts.__init__
-@exit /b 0
-
-rem ================================ library script ================================
-
-:scripts.lib
-@call :%*
-@exit /b
+:main
+@if ^"%1^" == "-c" @goto subcommand.call
+@if ^"%1^" == "--module" @goto subcommand.call.legacy
+@if ^"%1^" == "-h" @goto doc.help
+@if ^"%1^" == "--help" @goto doc.help
+@goto main_script
 
 
-:scripts.lib-noecho
-@call :is_echo_on && @goto scripts.lib-noecho._no_echo
-@call :%*
-@exit /b %errorlevel%
-#+++
-
-:scripts.lib-noecho._no_echo
+:main_script
+@setlocal EnableDelayedExpansion EnableExtensions
 @echo off
-@call :%*
-@echo on
-@exit /b %errorlevel%
-
-rem ================================ main script ================================
-
-:scripts.main
-@set "__name__=__main__"
-@echo off
-prompt $$ 
-setlocal EnableDelayedExpansion EnableExtensions
 call :metadata SOFTWARE.
-title !SOFTWARE.description! !SOFTWARE.version!
-cls
-echo Loading script...
-
-for %%n in (1 2) do call :fix_eol.alt%%n
 call :config
 
-for %%p in (
-    data_path temp_path
-) do if not exist "!%%p!" md "!%%p!"
+title !SOFTWARE.description! !SOFTWARE.version!
+cls
+echo !SOFTWARE.description! !SOFTWARE.version!
+echo=
+echo Loading...
 
-cd /d "!data_path!"
+for %%p in (
+    tmp_dir
+    data_dir
+) do if defined %%p if not exist "!%%p!" md "!%%p!"
+
+cd /d "!data_dir!"
 
 rem Additional Settings
 rem bottomText_lines @ GUI Builder
@@ -184,7 +178,7 @@ call :Style.load
 call :Display.change_size !default_console_width! !default_console_height!
 
 rem Setup splash screen
-call %batchlib%:capchar DQ
+call :capchar DQ
 cls
 call :Style_!preferred.style!.splash_screen
 
@@ -207,20 +201,55 @@ call :Block_size.init_list 4 4
 call :Block_size.setup 0x0
 call :State.reset
 call :Difficulty.load
-call %batchlib%:capchar *
-call %batchlib%:watchvar --initialize > nul 2> nul
+call :capchar ESC BASE BACK DQ
+call :watchvar --initialize > nul 2> nul
 call :main_menu
-rd /s /q "!temp_path!" > nul 2> nul
+rd /s /q "!tmp_dir!" > nul 2> nul
 exit /b
 
 
-:scripts.main.reload
+:main_script.reload
 endlocal
 goto scripts.main
 
-rem ======================================== User Interfaces ========================================
 
-:ui.__init__     User Interfaces
+:subcommand.call -c <label> [arguments]
+@(
+    setlocal DisableDelayedExpansion
+    call set command=%%*
+    setlocal EnableDelayedExpansion
+    for /f "tokens=1* delims== " %%a in ("!command!") do @(
+        endlocal
+        endlocal
+        call %%b
+    )
+)
+@exit /b
+
+
+:subcommand.call.legacy --module=lib <label> [arguments]
+@if not ^"%2^" == "lib" @(
+    1>&2 echo%0: Operation not supported
+)
+@(
+    setlocal DisableDelayedExpansion
+    call set command=%%*
+    setlocal EnableDelayedExpansion
+    for /f "tokens=2* delims== " %%a in ("!command!") do @(
+        endlocal
+        endlocal
+        call %%b
+    )
+)
+@exit /b
+
+
+rem ############################################################################
+rem User Interfaces
+rem ############################################################################
+
+:ui
+exit /b 0
 
 rem ================================ Main Menu ================================
 
@@ -275,7 +304,7 @@ if "!user_input!" == "1" call :Settings.Style.menu
 if "!user_input!" == "2" call :Settings.toggle_color
 if /i "!user_input!" == "D" call :Settings.debug
 if /i "!user_input!" == "U" goto Settings.update_script
-if /i "!user_input!" == "R" goto scripts.main.reload
+if /i "!user_input!" == "R" goto main_script.reload
 goto Settings.menu
 
 
@@ -285,14 +314,16 @@ set "selected.style="
 cls
 echo Current grid style : !Style_%preferred.style%.name!
 echo=
-call :Style.get_item list
+call :menuopts.list Style.list "$n. {Style_$i.name}"
 echo=
 echo 0. Back
 echo=
 echo Input style number:
 set /p "user_input="
 if "!user_input!" == "0" goto :EOF
-call :Style.get_item "!user_input!" && goto Settings.Style.preview
+call :menuopts.get selected.style Style.list "!user_input!" && (
+    goto Settings.Style.preview
+)
 goto Settings.Style.menu
 
 
@@ -307,15 +338,15 @@ set "hB=!hBorder!"
 set "vB=!vBorder!"
 set "hG=!hLine!"
 echo !ulCorner!!hB!!hB!!hB!!hB!!hB!!hB!!hB!!uEdge!!hB!!hB!!hB!!urCorner!
-echo !vB! 1 !vLine! 2 !vB! !vLine! !vB! 
-echo !vB!!hG!!hG!!hG!!cLine!!hG!!hG!!hG!!vB!!hG!!cLine!!hG!!vB! 
-echo !vB! 3 !vLine! 4 !vB! !vLine! !vB! 
+echo !vB! 1 !vLine! 2 !vB! !vLine! !vB!
+echo !vB!!hG!!hG!!hG!!cLine!!hG!!hG!!hG!!vB!!hG!!cLine!!hG!!vB!
+echo !vB! 3 !vLine! 4 !vB! !vLine! !vB!
 echo !vB!!hB!!hB!!hB!!hB!!hB!!hB!!hB!!cBorder!!hB!!hB!!hB!!vB!
-echo !vB!!hG!!hG!!hG!!cLine!!hG!!hG!!hG!!vB!!hG!!cLine!!hG!!vB! 
+echo !vB!!hG!!hG!!hG!!cLine!!hG!!hG!!hG!!vB!!hG!!cLine!!hG!!vB!
 echo !dlCorner!!hB!!hB!!hB!!hB!!hB!!hB!!hB!!dEdge!!hB!!hB!!hB!!drCorner!
 echo=
 endlocal
-call :Input.yesno user_input -m "Confirm? Y/N? " -y="true" -n="" || goto Settings.Style.menu
+call :Input.yesno -m "Confirm? [y/n] " || goto Settings.Style.menu
 echo=
 set "preferred.style=!selected.style!"
 echo Grid Style successfully changed
@@ -327,11 +358,11 @@ goto Settings.Style.menu
 cls
 echo Debug Informations
 echo=
-echo Temp path: !temp_path!
+echo Temporary path: !tmp_dir!
 echo=
-call %batchlib%:wait.calibrate
+call :wait.calibrate
 echo=
-call %batchlib%:watchvar --name
+call :watchvar --name
 echo=
 pause
 goto :EOF
@@ -348,24 +379,17 @@ exit /b 0
 cls
 echo This process requires internet connection
 echo=
-echo=
-call :updater "%~f0" || (
-    pause
-    goto Settings.menu
-)
-echo=
 echo Note:
 echo - Updating will REPLACE current script with the newer version
-echo - Saved puzzle, answers, and solving won't be deleted
+echo - Saved puzzle, answers, and solving in data folder won't be deleted
 echo=
-call :Input.yesno user_input -m "Update now? Y/N? " || goto Settings.menu
-call :updater --upgrade "%~f0"
+call :updater "%~f0" && (
+    echo Script will exit
+    exit 0
+)
 goto Settings.menu
 
 rem ================================ Play Sudoku ================================
-
-:ui.play.__init__     Play Sudoku
-
 
 :Play
 :Play.select_sudoku
@@ -429,7 +453,7 @@ if "!duplicates_count!" == "0" (
     if "!empty_cells!" == "0" goto Play.solved
     echo !CL!Seems good, no duplicates found...
 ) else (
-    echo !CL!Oops^^! There is something wrong... 
+    echo !CL!Oops^^! There is something wrong...
     if /i not "!use_color!" == "true" echo TIPS: Use color GUI to show errors
 )
 pause > nul
@@ -442,7 +466,7 @@ call :Matrix.get_duplicates selected.solvings
 call :Matrix.unmark_duplicates applied.color "!Color_puzzle!"
 call :Color.set --revert --error !duplicate_list!
 if not "!duplicates_count!" == "0" (
-    echo !CL!Oops^^! There is something wrong... 
+    echo !CL!Oops^^! There is something wrong...
     if /i not "!use_color!" == "true" echo TIPS: Use color GUI to show errors
     pause > nul
     goto :EOF
@@ -458,8 +482,8 @@ goto :EOF
 
 
 :Play.solved
-call %batchlib%:difftime time_taken !time! !start_time!
-call %batchlib%:ftime time_taken !time_taken!
+call :difftime time_taken !time! !start_time!
+call :ftime time_taken !time_taken!
 call :Matrix.create selected.puzzle selected.puzzle_array 1
 call :Side_text.add --clear ^
     --info:selected.puzzle " " ^
@@ -489,9 +513,6 @@ call :save2file --solvings
 goto :EOF
 
 rem ================================ Import Sudoku ================================
-
-:ui.import.__init__     Import Sudoku
-
 
 :Import
 for %%v in (puzzle answer solvings) do set "selected.%%v_array="
@@ -542,7 +563,7 @@ echo 1. Input from left to right (A1 to A!grid_size!)
 echo 2. Go to first column of next line (Go to B1)
 echo 3. Repeat until done
 echo=
-echo Use dot, space, underscore, zero or 
+echo Use dot, space, underscore, zero or
 echo question mark to represent empty cell
 echo=
 echo Array example (2x2) :
@@ -550,7 +571,7 @@ echo ...42....1..4..1
 echo=
 echo 0. Back
 echo=
-echo Input the !selected.size! !Import.type! array: 
+echo Input the !selected.size! !Import.type! array:
 set /p "selected.!Import.type!_array="
 echo=
 if "!selected.%Import.type%_array!" == "0" goto Import.select_method
@@ -649,7 +670,7 @@ call :Matrix.delete applied.color
 set "selected.file=Imported"
 set "selected.name=Imported @!date:~10,4!-!date:~4,2!-!date:~7,2!"
 for %%v in (
-    file name size 
+    file name size
     puzzle_array answer_array solvings_array
 ) do set "last_used.%%v=!selected.%%v!"
 
@@ -657,9 +678,6 @@ call :save2file --puzzle
 goto :EOF
 
 rem ================================ View Sudoku ================================
-
-:ui.viewer.__init__     View Sudoku
-
 
 :View
 :View.setup
@@ -731,9 +749,6 @@ exit /b 0
 
 rem ================================ Generate Sudoku ================================
 
-:ui.generator.__init__     Generate Sudoku
-
-
 :Generator
 :Generator.setup
 call :select_size || goto :EOF
@@ -743,7 +758,7 @@ call :Block_size.setup !selected.size!
 :Generator.difficultyIn
 set "user_input="
 cls
-call :Difficulty.get_item list
+call :menuopts.list Difficulty.list "$n. {Difficulty_$i.name}"
 echo=
 echo C. Custom
 echo 0. Back
@@ -752,7 +767,9 @@ echo Input difficulty level:
 set /p "user_input="
 if "!user_input!" == "0" goto Generator.setup
 if /i "!user_input!" == "C" goto Generator.custom_setup
-call :Difficulty.get_item "!user_input!" && goto Generator.difficultySetup
+call :menuopts.get selected.difficulty Difficulty.list "!user_input!" && (
+    goto Generator.difficultySetup
+)
 goto Generator.difficultyIn
 
 
@@ -810,10 +827,10 @@ set "minTime=???"
 set "maxTime=???"
 for /f "tokens=1,2 delims= " %%a in ("!estTime!") do (
     set /a "minTime=%%a * 1000 / !loopSpeed!"
-    call %batchlib%:ftime minTime !minTime!
-    
+    call :ftime minTime !minTime!
+
     set /a "maxTime=%%b * 1000 / !loopSpeed!"
-    call %batchlib%:ftime maxTime !maxTime!
+    call :ftime maxTime !maxTime!
 )
 
 set "selected.name=!difficultyName!"
@@ -870,8 +887,8 @@ for /l %%n in (1,1,!_count!) do (
     )
 )
 set "_count="
-call %batchlib%:difftime time_taken !time! !start_time2!
-call %batchlib%:ftime time_taken !time_taken!
+call :difftime time_taken !time! !start_time2!
+call :ftime time_taken !time_taken!
 echo !CL![!time!] Generate answer done in !time_taken! with !search_count! loops
 call :Matrix.to_array selected.puzzle last_used.answer_array
 
@@ -885,10 +902,10 @@ set "totalBruteforceCount=0"
 call :Cell.random selected.puzzle --filled
 for %%c in (!cell_list!) do (
     title Sudoku !SOFTWARE.VERSION! - Generating puzzle... #!progressCount!/!total_cells! ^| Givens: !currentGivens!/!targetGivens!
-    
+
     call :Matrix.copy selected.puzzle selected.solvings
     set "selected.solvings_%%c= "
-    
+
     if /i "!method_used!" == "BF" (
         call :Bruteforce selected.solvings --validate
         set /a "totalBruteforceCount+=!search_count!"
@@ -905,8 +922,8 @@ for %%c in (!cell_list!) do (
 title Sudoku !SOFTWARE.VERSION!
 
 :Generator.generateDone
-call %batchlib%:difftime time_taken !time! !start_time2!
-call %batchlib%:ftime time_taken !time_taken!
+call :difftime time_taken !time! !start_time2!
+call :ftime time_taken !time_taken!
 if /i "!method_used!" == "BF" (
     echo !CL![!time!] Generate puzzle done in !time_taken! with !totalBruteforceCount! loops
 ) else echo !CL![!time!] Generate puzzle done in !time_taken!
@@ -920,8 +937,8 @@ call :Matrix.delete candidate_list
 call :Matrix.delete selected.solvings
 
 echo [!time!] Done
-call %batchlib%:difftime time_taken !time! !start_time!
-call %batchlib%:ftime time_taken !time_taken!
+call :difftime time_taken !time! !start_time!
+call :ftime time_taken !time_taken!
 echo=
 echo Total time taken : !time_taken!
 echo=
@@ -949,8 +966,8 @@ goto Generator.promptGenerate
 call :save2file --puzzle --quiet
 if not "!generateCount!" == "!generateTotal!" goto Generator.startGenerate
 
-call %batchlib%:difftime time_taken !time! !start_time!
-call %batchlib%:ftime time_taken !time_taken!
+call :difftime time_taken !time! !start_time!
+call :ftime time_taken !time_taken!
 
 call :Matrix.delete selected.puzzle
 
@@ -962,9 +979,6 @@ pause
 goto :EOF
 
 rem ================================ Solve Sudoku ================================
-
-:ui.solver.__init__     Solve Sudoku
-
 
 :Solver
 :Solver.setup
@@ -980,22 +994,22 @@ call :Side_text.add --clear --info:selected.solvings
 if defined selected.solvings_array (
     rem Load solvings
     call :Matrix.create selected.solvings selected.solvings_array 1
-    call :Matrix.count empty_cells selected.solvings " " 
+    call :Matrix.count empty_cells selected.solvings " "
     set /a "_solved= !total_cells! - !empty_cells! - !given_cells!"
     call :Side_text.add "Solved  : !_solved!"
     set "_solved="
-    
+
     cls
     call :Display.sudoku selected.solvings
     echo Solvings data found
-    call :Input.yesno use_saves -m "Do you want to load this solvings? Y/N? " -y="true" -n="" || (
+    call :Input.yesno use_saves -m "Do you want to load this solvings? [y/n] " -y="true" -n="" || (
         rem Restore puzzle and side text if user entered 'N'
         call :Matrix.create selected.solvings selected.puzzle_array 1
         call :Side_text.add --clear --info:selected.solvings
     )
 )
-call :Input.yesno user_input -m "Show solvings steps? Y/N? " -y="true" -n="" || goto Solver.quickSolve
-call :Input.yesno show_candidates -m "Show candidates? Y/N? " -y="true" -n=""
+call :Input.yesno -m "Show solvings steps? [y/n] " || goto Solver.quickSolve
+call :Input.yesno show_candidates -m "Show candidates? [y/n] " -y="true" -n=""
 goto Solver.showSteps_setup
 
 
@@ -1010,8 +1024,8 @@ call :Solve selected.solvings
 if /i "!is_valid!" == "false" goto Solver.invalidSudoku
 if not "!empty_cells!" == "0" goto Solver.too_hard
 
-call %batchlib%:difftime time_taken !time! !start_time!
-call %batchlib%:ftime time_taken !time_taken!
+call :difftime time_taken !time! !start_time!
+call :ftime time_taken !time_taken!
 call :Matrix.to_array selected.solvings last_used.answer_array
 
 cls
@@ -1117,7 +1131,7 @@ goto Solver.quit
 
 
 :Solver.too_hard
-call :Matrix.count empty_cells selected.solvings " " 
+call :Matrix.count empty_cells selected.solvings " "
 set /a "_solved= !total_cells! - !empty_cells! - !given_cells!"
 call :Side_text.add "Solved  : !_solved!"
 set "_solved="
@@ -1127,8 +1141,8 @@ cls
 call :Display.sudoku selected.solvings
 echo This sudoku is either too hard or it is invalid.
 
-call :Input.yesno user_input -m "Use bruteforce? Y/N? " -y="true" -n="" || goto Solver.quit
-call :Input.yesno count_solutions -d "Count number of solutions? Y/N? " -y="true" -n=""
+call :Input.yesno -m "Use bruteforce? [y/n] " || goto Solver.quit
+call :Input.yesno count_solutions -m "Count number of solutions? [y/n] " -y="true" -n=""
 
 call :Matrix.create selected.solvings selected.puzzle_array 1
 cls
@@ -1141,8 +1155,8 @@ set "start_time=!time!"
 if defined count_solutions (
     call :Bruteforce selected.solvings --solution-count
 ) else call :Bruteforce selected.solvings
-call %batchlib%:difftime time_taken !time! !start_time!
-call %batchlib%:ftime time_taken !time_taken!
+call :difftime time_taken !time! !start_time!
+call :ftime time_taken !time_taken!
 
 set "last_used.answer_array=!solution1!"
 
@@ -1171,10 +1185,8 @@ goto :EOF
 
 rem ================================ Select Sudoku ================================
 
-:ui.select.__init__     Select sudoku from file / last used
-
-
 :select_sudoku [--validate]
+rem Select sudoku from file / last used
 set "_require_validate="
 for %%a in (%*) do if /i "%%a" == "--validate" set "_require_validate=true"
 set "_data_vars=file name size puzzle_array answer_array solvings_array"
@@ -1202,10 +1214,10 @@ if "!selected.file!" == "0" (
 )
 if defined last_used.puzzle_array if /i "!selected.file!" == "L" goto select_sudoku.last_used
 if /i "!selected.file!" == "T" set "selected.file=%~f0"
-call %batchlib%:check_path --exist --file selected.file && (
+call :check_path --exist --file selected.file && (
     echo=
     echo Checking file...
-    call %batchlib%:strip_dquotes selected.file
+    call :strip_dquotes selected.file
     call :Sudoku_file.read "!selected.file!"
     if not "!Category.item_count!" == "0" goto select_sudoku.category
     echo No sudoku data found
@@ -1319,10 +1331,8 @@ goto select_size
 
 rem ======================================== Save to File  ========================================
 
-:ui.save_to_file.__init__     Save Sudoku to file
-
-
 :save2file   <--puzzle | --solvings> [--quiet]
+rem Save Sudoku to file
 rem --puzzle    Save to Puzzle folder
 rem --solvings  Save to Saves folder
 rem --quiet     Quiet Mode. Do not prompt user
@@ -1340,7 +1350,7 @@ goto save2file.noPrompt
 
 
 :save2file.prompt
-call :Input.yesno user_input -m "Save to file? Y/N? " -y="true" -n="" || goto save2file.cleanup
+call :Input.yesno -m "Save to file? [y/n] " || goto save2file.cleanup
 
 if not defined last_used.file set "last_used.file=Unknown"
 :save2file.fileIn
@@ -1357,7 +1367,7 @@ echo=
 echo Input sudoku file name :
 set /p "selected.file="
 if /i "!selected.file!" == "0" goto save2file.cleanup
-call %batchlib%:strip_dquotes selected.file
+call :strip_dquotes selected.file
 if not exist "!selected.file!" goto save2file.nameIn
 echo=
 echo File already exist. Sudoku will be added to that file
@@ -1373,9 +1383,9 @@ echo=
 echo Name   : !last_used.name!
 echo Size   : !last_used.size!
 < nul set /p "=Data   : Puzzle,"
-if defined last_used.answer_array < nul set /p "=!_! Answer,"
-if defined last_used.solvings_array < nul set /p "=!_! Solvings,"
-echo !BS!
+if defined last_used.answer_array < nul set /p "=!BASE! Answer,"
+if defined last_used.solvings_array < nul set /p "=!BASE! Solvings,"
+echo !BACK!
 echo=
 echo Enter nothing to use the name above
 echo=
@@ -1432,7 +1442,7 @@ goto :EOF
 
 rem ======================================== Utilities ========================================
 
-:utils.__init__
+:utils
 rem Utility Functions
 exit /b 0
 
@@ -2054,12 +2064,12 @@ rem ======================================== Display ===========================
 :Display.evaluate_color
 set "Color.list=default puzzle solvings highlight candidate error"
 set "ansi_esc_seq_support="
-call %batchlib%:get_os _version
+call :get_os _version
 for /f "tokens=1 delims=." %%a in ("!_version!") do (
     if %%a GEQ 10 set "ansi_esc_seq_support=true"
 )
 for %%t in (!Color.list!) do if defined ansi_esc_seq_support (
-    call %batchlib%:color2seq Color_%%t "!%%t_color!"
+    call :color2seq Color_%%t "!%%t_color!"
 ) else set "Color_%%t=!%%t_color!"
 exit /b 0
 
@@ -2114,8 +2124,8 @@ set "Grid_top=!_left_margin!!ulCorner!!_border!!Grid_top!!urCorner!"
 set "Grid_border=!_left_margin!!lEdge!!_border!!Grid_border!!rEdge!"
 set "Grid_bottom=!_left_margin!!dlCorner!!_border!!Grid_bottom!!drCorner!"
 set "Grid_line=!_left_margin!!vBorder!!_line!!Grid_line!!vBorder!"
-call %batchlib%:strlen vBorder_len vBorder
-call %batchlib%:strlen vLine_len vLine
+call :strlen vBorder_len vBorder
+call :strlen vLine_len vLine
 set "Grid_numbers=!_left_margin!"
 for /l %%n in (1,1,!vBorder_len!) do set "Grid_numbers=!Grid_numbers! "
 for /l %%n in (1,1,!grid_size!) do (
@@ -2129,7 +2139,7 @@ for /l %%n in (1,1,!grid_size!) do (
 )
 
 rem Calculate grid size and screen size
-call %batchlib%:strlen GUI_width Grid_numbers
+call :strlen GUI_width Grid_numbers
 set /a "GUI_height= 2 + 2 * !grid_size!"
 set /a "con_width=!GUI_width! + !Side_text.width! + 3"
 set /a "con_height=!GUI_height! + !bottomText_lines!"
@@ -2162,10 +2172,10 @@ set "Log_top=!ulCorner!!Log_top!!urCorner!"
 set "Log_bottom=!dlCorner!!Log_bottom!!drCorner!"
 
 if not defined ansi_esc_seq_support (
-    pushd "!temp_path!"
-    < nul set /p "=!BS!!BS!" > "   _" 2> nul
+    pushd "!tmp_dir!"
+    < nul set /p "=!BACK!!BACK!" > "   _" 2> nul
     for %%s in (X !symbol_spaced!) do (
-        < nul set /p "=!BS!!BS!" > " %%s _" 2> nul
+        < nul set /p "=!BACK!!BACK!" > " %%s _" 2> nul
     )
     popd
 )
@@ -2182,7 +2192,7 @@ goto :EOF
 
 :Display.sudoku   matix_name [/H (Horizontal spacing only)]
 setlocal
-pushd "!temp_path!"
+pushd "!tmp_dir!"
 set "_line_count=1"
 
 rem Top Vertical Spacing
@@ -2198,21 +2208,21 @@ echo !Grid_margin!!Grid_top!!Grid_margin!!Side_text.line%_line_count%!
 set /a "_line_count+=1"
 for /l %%i in (1,1,!grid_size!) do (
     rem Line with numbers
-    < nul set /p "=!_!!Grid_margin!!ALPHABET:~%%i,1! !vBorder!" 
+    < nul set /p "=!BASE!!Grid_margin!!ALPHABET:~%%i,1! !vBorder!"
     for /l %%j in (1,1,!grid_size!) do (
         if /i "!use_color!" == "true" (
             if defined ansi_esc_seq_support (
                 < nul set /p "=!ESC!!applied.color_%%i-%%j! !%1_%%i-%%j! !ESC!!Color_default!"
             ) else findstr /l /v /a:!applied.color_%%i-%%j! "." " !%1_%%i-%%j! _" nul 2> nul
-        ) else < nul set /p "=!_! !%1_%%i-%%j! "
+        ) else < nul set /p "=!BASE! !%1_%%i-%%j! "
         set /a "_edge=%%j %% !block_width!"
         if "!_edge!" == "0" (
-            < nul set /p "=!_!!vBorder!"
-        ) else < nul set /p "=!_!!vLine!"
+            < nul set /p "=!BASE!!vBorder!"
+        ) else < nul set /p "=!BASE!!vLine!"
     )
-    for %%n in (!_line_count!) do echo !_!!Grid_margin!!Side_text.line%%n!
+    for %%n in (!_line_count!) do echo !BASE!!Grid_margin!!Side_text.line%%n!
     set /a "_line_count+=1"
-    
+
     rem Line without numbers
     for %%n in (!_line_count!) do (
         set /a "_edge=%%i %% !block_height!"
@@ -2237,23 +2247,23 @@ exit /b 0
 
 :Display.candidates   matix_name
 rem !Color_candidate!
-pushd "!temp_path!"
+pushd "!tmp_dir!"
 setlocal
 for /l %%i in (1,1,!grid_size!) do (
-    < nul set /p "=!_!!ALPHABET:~%%i,1! !vBorder!"
+    < nul set /p "=!BASE!!ALPHABET:~%%i,1! !vBorder!"
     for /l %%j in (1,1,!grid_size!) do (
         if /i "!use_color!" == "true" (
             if defined ansi_esc_seq_support (
                 < nul set /p "=!ESC!!applied.color_%%i-%%j!!%1_%%i-%%j!!ESC!!Color_default!"
             ) else (
-                < nul set /p "=!BS!!BS!" > "!%1_%%i-%%j!_" 2> nul
+                < nul set /p "=!BACK!!BACK!" > "!%1_%%i-%%j!_" 2> nul
                 findstr /l /v /a:!applied.color_%%i-%%j! "." "!%1_%%i-%%j!_" nul 2> nul
             )
-        ) else < nul set /p "=!_!!%1_%%i-%%j!"
+        ) else < nul set /p "=!BASE!!%1_%%i-%%j!"
         set /a "_edge=%%j %% !block_width!"
         if "!_edge!" == "0" (
-            < nul set /p "=!_!!vBorder!"
-        ) else < nul set /p "=!_!!vLine!"
+            < nul set /p "=!BASE!!vBorder!"
+        ) else < nul set /p "=!BASE!!vLine!"
     )
     echo=
     set /a "_edge=%%i %% !block_height!"
@@ -2269,7 +2279,7 @@ if "!applied.con_width!,!applied.con_height!" == "%~1,%~2" exit /b 0
 mode %~1,%~2
 set "applied.con_width=%~1"
 set "applied.con_height=%~2"
-call %batchlib%:setup_clearline CL
+call :clear_line_macro CL !applied.con_width!
 exit /b 0
 
 rem ======================================== Action ========================================
@@ -2354,11 +2364,11 @@ exit /b 0
 
 rem ======================================== Side_text ========================================
 
-:Side_text.add   [--clear] [--info:matrix_name] [text [...]] 
+:Side_text.add   [--clear] [--info:matrix_name] [text [...]]
 for %%w in (!Side_text.width!) do for %%a in (%*) do (
     set "_text=%%~a"
     if /i "!_text:~0,7!" == "--info:" for /f "tokens=1* delims=:" %%b in ("%%a") do (
-        call :Matrix.count empty_cells %%~c " " 
+        call :Matrix.count empty_cells %%~c " "
         set /a "given_cells= !total_cells! - !empty_cells!"
         call :Side_text.add "Puzzle Information" ^
             "Name    : !selected.name!" ^
@@ -2452,776 +2462,90 @@ for /f "tokens=1,2 delims=-" %%a in ("!%~1!") do (
 set "%~1=!_row!-!_col!"
 goto :EOF
 
-rem ======================================== Difficulty ========================================
+rem ############################################################################
+rem Library
+rem ############################################################################
 
-:Difficulty.load
+:lib.dependencies [return_prefix]
+set %~1install_requires= ^
+    ^ rand strlen strip_dquotes ^
+    ^ difftime ftime diffdate ^
+    ^ check_path watchvar download_file ^
+    ^ get_os hex2str capchar color2seq ^
+    ^ clear_line_macro get_con_size ^
+    ^ updater argparse ^
+    ^ %=END=%
+exit /b 0
+
+
+:lib.legacy_support
+    :__init__ > nul 2> nul
+    @goto module.entry_point
+    :module.entry_point   [--module=<name>]  [args]
+    :scripts.lib
+exit /b 0
+
+
+:menuopts.list <list_var> <text_fmt>
+setlocal EnableDelayedExpansion
+set "_list_var=%~1"
+set "_text_fmt=%~2"
+call set "_text_fmt=%%_text_fmt:{=^!%%"
+call set "_text_fmt=%%_text_fmt:}=^!%%"
 set "_count=0"
-set "Difficulty.list="
-for /f "usebackq tokens=1-3* delims=_ " %%a in ("%~f0") do if /i "%%a %%b" == "$ Difficulty" (
+for %%n in (!%_list_var%!) do (
+    set "_text=!_text_fmt!"
     set /a "_count+=1"
-    set "Difficulty.list=!Difficulty.list! %%c"
-    if "%%d" == "" (
-        set "Difficulty_%%c.name=Difficulty #!_count!"
-    ) else set "Difficulty_%%c.name=%%d"
+    set "_count=   !_count!"
+    for %%i in ("!_count!") do set "_text=!_text:$n=%%~i!"
+    set "_text=!_text:$i=%%n!"
+    call :menuopts.list._display
 )
-goto :EOF
+exit /b 0
+#+++
 
+:menuopts.list._display
+echo %_text%
+exit /b 0
+#+++
 
-:Difficulty.get_item   list|number
+:menuopts.get <return_var> <list_var> <number>
+setlocal EnableDelayedExpansion
+set "_return_var=%~1"
+set "_list_var=%~2"
+set "_number=%~3"
 set "_count=0"
-set "selected.difficulty="
-for %%d in (!Difficulty.list!) do (
+set "_result="
+for %%n in (!%_list_var%!) do if not defined _result (
     set /a "_count+=1"
-    if /i "%1" == "list" (
-        set "_count=   !_count!"
-        echo !_count:~-3,3!. !Difficulty_%%d.name!
-    ) else if "%~1" == "!_count!" set "selected.difficulty=%%d"
+    if "!_number!" == "!_count!" set "_result=%%n"
 )
-if /i not "%1" == "list" if not defined selected.difficulty exit /b 1
+for /f "tokens=1* delims= " %%q in ("Q !_result!") do (
+    endlocal
+    set "%_return_var%=%%r"
+    if not defined %_return_var% exit /b 3
+)
+exit /b 0
+
+
+rem ======================================== Assets ========================================
+
+:assets
+rem Additional data to bundle
 exit /b 0
 
 rem ======================================== Style ========================================
 
 :Style.load
-set "_count=0"
-set "Style.list="
-for /f "usebackq tokens=1-3,* delims= " %%a in ("%~f0") do if /i "%%a %%b" == "$ GUI" (
-    set /a "_count+=1"
-    set "Style.list=!Style.list! %%c"
-    if "%%d" == "" (
-        set "Style_%%c.name=Style #!_count!"
-    ) else set "Style_%%c.name=%%d"
-)
+set "Style.list=lines_n_pipes boxchar"
+set "Style_lines_n_pipes.name=Lines & Pipes"
+set "Style_boxchar.name=Box Characters"
 set "_found="
 if defined preferred.style for %%s in (!Style.list!) do if /i "!preferred.style!" == "%%s" set "_found=true"
 if not defined _found set "preferred.style="
 if not defined preferred.style for %%s in (!Style.list!) do set "preferred.style=%%s"
-goto :EOF
-
-
-:Style.get_item   list|number
-set "_count=0"
-set "selected.style="
-for %%v in (!Style.list!) do (
-    set /a "_count+=1"
-    if /i "%1" == "list" (
-        set "_count=   !_count!"
-        echo !_count:~-3,3!. !Style_%%v.name!
-    ) else if "%~1" == "!_count!" set "selected.style=%%v"
-)
-if /i not "%1" == "list" if not defined selected.style exit /b 1
 exit /b 0
 
-rem ======================================== Shortcuts ========================================
-
-:shortcut.__init__
-rem Shortcuts to type less codes
-call %batchlib%:extract_func "batchlib-min.bat" ^
-    ^ "Input.yesno" ^
-    ^ > "!SOFWARE.name!.shortcut.bat"
-exit /b 0
-
-
-:Input.yesno   return_var  [-m message]  [-y value]  [-n value]
-setlocal EnableDelayedExpansion EnableExtensions
-set "_message=Y/N? "
-set "_yes_value=Y"
-set "_no_value=N"
-set parse_args.args= ^
-    ^ "-m --message         :var:_message" ^
-    ^ "-y --yes             :var:_yes_value" ^
-    ^ "-n --no              :var:_no_value"
-call :parse_args %*
-call :Input.yesno._loop
-set "_result="
-if /i "!user_input:~0,1!" == "Y" set "_result=!_yes_value!"
-if /i "!user_input:~0,1!" == "N" set "_result=!_no_value!"
-if defined _result (
-    for /f tokens^=*^ delims^=^ eol^= %%a in ("!_result!") do (
-        endlocal
-        set "%~1=%%a"
-        if /i "%user_input:~0,1%" == "Y" exit /b 0
-    )
-) else (
-    endlocal
-    set "%~1="
-    if /i "%user_input:~0,1%" == "Y" exit /b 0
-)
-exit /b 1
-#+++
-
-:Input.yesno._loop
-echo=
-set /p "user_input=!_message!"
-if /i "!user_input:~0,1!" == "Y" exit /b 0
-if /i "!user_input:~0,1!" == "N" exit /b 0
-goto Input.yesno._loop
-
-rem ======================================== Batch Script Library ========================================
-
-:lib.__init__
-rem Functions from Batch Script Library (batchlib)
-call %batchlib%:extract_func "batchlib-min.bat" ^
-    ^ ^"rand strlen strip_dquotes difftime ftime diffdate wait ^
-    ^   check_path hexlify fix_eol check_win_eol ^
-    ^   download_file get_os watchvar is_echo_on capchar color2seq setup_clearline ^
-    ^   parse_version ^" ^
-    ^ > "!SOFWARE.name!.lib.bat"
-exit /b 0
-
-
-:rand   return_var  minimum  maximum
-set /a "%~1=((!random!<<16) + (!random!<<1) + (!random!>>14)) %% ((%~3)-(%~2)+1) + (%~2)"
-exit /b 0
-
-
-:strlen   return_var  input_var
-set "%~1=0"
-if defined %~2 (
-    for /l %%b in (12,-1,0) do (
-        set /a "%~1+=(1<<%%b)"
-        for %%i in (!%~1!) do if "!%~2:~%%i,1!" == "" set /a "%~1-=(1<<%%b)"
-    )
-    set /a "%~1+=1"
-)
-exit /b 0
-
-
-:strip_dquotes   input_var
-if "!%~1:~0,1!!%~1:~-1,1!" == ^"^"^"^" set "%~1=!%~1:~1,-1!"
-exit /b 0
-
-
-:difftime   return_var  end_time  [start_time] [--no-fix]
-set "%~1=0"
-for %%t in (%~2:00:00:00:00 %~3:00:00:00:00) do for /f "tokens=1-4 delims=:." %%a in ("%%t") do (
-    set /a "%~1+=24%%a %% 24 *360000 +1%%b*6000 +1%%c*100 +1%%d -610100"
-    set /a "%~1*=-1"
-)
-if /i not "%4" == "--no-fix" if "!%~1:~0,1!" == "-" set /a "%~1+=8640000"
-exit /b 0
-
-
-:ftime   return_var  centiseconds
-set "%~1="
-setlocal EnableDelayedExpansion
-set "_result="
-set /a "_remainder=(%~2) %% 8640000"
-for %%s in (360000 6000 100 1) do (
-    set /a "_digits=!_remainder! / %%s + 100"
-    set /a "_remainder%%= %%s"
-    set "_result=!_result!!_digits:~-2,2!:"
-)
-set "_result=!_result:~0,-4!.!_result:~-3,2!"
-for /f "tokens=*" %%r in ("!_result!") do (
-    endlocal
-    set "%~1=%%r"
-)
-exit /b 0
-
-
-:diffdate   return_var  end_date  [start_date]
-set "%~1="
-setlocal EnableDelayedExpansion
-set "_difference=0"
-set "_args=/%~2"
-if "%~3" == "" (
-    set "_args=!_args! /1/01/1970"
-) else set "_args=!_args! /%~3"
-set "_args=!_args:/ =/!"
-set "_args=!_args:/0=/!"
-for %%d in (!_args!) do for /f "tokens=1-3 delims=/" %%a in ("%%d") do (
-    set /a "_difference+=(%%c-1970)*365 + (%%c/4 - %%c/100 + %%c/400 - 477) + (336 * (%%a-1) + 7) / 11 + %%b - 2"
-    if %%a LEQ 2 set /a "_difference+=2-(((%%c %% 4)-8)/-8)*((((%%c %% 400)-512)/-512)+((((%%c %% 100)-128)/-128)-1)/-1)"
-    set /a "_difference*=-1"
-)
-for /f "tokens=*" %%r in ("!_difference!") do (
-    endlocal
-    set "%~1=%%r"
-)
-exit /b 0
-
-
-:wait   delay
-for %%t in (%=wait=% %~1) do for /l %%w in (0,!wait._increment!,%%t00000) do call
-exit /b 0
-#+++
-
-:wait.calibrate   [delay_target]
-setlocal EnableDelayedExpansion
-echo Calibrating wait()
-set "wait._increment=10000"
-set "_delay_target=%~1"
-set "_time_taken=-1"
-for /l %%i in (1,1,12) do if not "!_time_taken!" == "!_delay_target!" (
-    if "%~1" == "" set "_delay_target=!wait._increment:~0,3!"
-    set "_start_time=!time!"
-    for %%t in (%=wait=% !_delay_target!) do for /l %%w in (0,!wait._increment!,%%t00000) do call
-    set "_time_taken=0"
-    for %%t in (!time!:00:00:00:00 !_start_time!:00:00:00:00) do for /f "tokens=1-4 delims=:." %%a in ("%%t") do (
-        set /a "_time_taken+=24%%a %% 0x18 *0x57E40 +1%%b*0x1770 +1%%c*0x64 +1%%d -0x94F34"
-        set /a "_time_taken*=0xffffffff"
-    )
-    if "!_time_taken:~0,1!" == "-" set /a "_time_taken+=0x83D600"
-    set /a "_time_taken*=10"
-    echo Calibration #%%i: !wait._increment!, !_delay_target! -^> ~!_time_taken! milliseconds
-    set /a "wait._increment=!wait._increment! * !_time_taken! / !_delay_target!"
-)
-echo Calibration done: !wait._increment!
-for /f "tokens=*" %%r in ("!wait._increment!") do (
-    endlocal
-    set "wait._increment=%%r"
-)
-exit /b 0
-
-
-:check_path   path_var  [-e|-n]  [-f|-p]
-setlocal EnableDelayedExpansion EnableExtensions
-for %%v in (_require_attrib  _require_exist) do set "%%v="
-set parse_args.args= ^
-    ^ "-e --exist       :flag:_require_exist=true" ^
-    ^ "-n --not-exist   :flag:_require_exist=false" ^
-    ^ "-f --file        :flag:_require_attrib=-" ^
-    ^ "-d --directory   :flag:_require_attrib=d"
-call :parse_args %*
-set "_path=!%~1!"
-if "!_path:~0,1!!_path:~-1,1!" == ^"^"^"^" set "_path=!_path:~1,-1!"
-if "!_path:~-1,1!" == ":" set "_path=!_path!\"
-for /f tokens^=1-2*^ delims^=?^"^<^>^| %%a in ("_?_!_path!_") do if not "%%c" == "" ( 1>&2 echo Invalid path & exit /b 1 )
-for /f "tokens=1-2* delims=*" %%a in ("_*_!_path!_") do if not "%%c" == "" ( 1>&2 echo Wildcards are not allowed & exit /b 1 )
-if "!_path:~1,1!" == ":" (
-    if not "!_path::=!" == "!_path:~0,1!!_path:~2!" ( 1>&2 echo Invalid path & exit /b 1 )
-) else if not "!_path::=!" == "!_path!" ( 1>&2 echo Invalid path & exit /b 1 )
-set "file_exist=false"
-for %%f in ("!_path!") do (
-    set "_path=%%~ff"
-    set "_attrib=%%~af"
-)
-if defined _attrib (
-    set "_attrib=!_attrib:~0,1!"
-    set "file_exist=true"
-)
-if defined _require_exist if not "!file_exist!" == "!_require_exist!" (
-    if "!_require_exist!" == "true" 1>&2 echo Input does not exist
-    if "!_require_exist!" == "false" 1>&2 echo Input already exist
-    exit /b 1
-)
-if "!file_exist!" == "true" if defined _require_attrib if not "!_attrib!" == "!_require_attrib!" (
-    if defined _require_exist (
-        if "!_require_attrib!" == "d" 1>&2 echo Input is not a folder
-        if "!_require_attrib!" == "-" 1>&2 echo Input is not a file
-    ) else (
-        if "!_require_attrib!" == "d" 1>&2 echo Input must be a new or existing folder, not a file
-        if "!_require_attrib!" == "-" 1>&2 echo Input must be a new or existing file, not a folder
-    )
-    exit /b 1
-)
-for /f "tokens=* delims=" %%c in ("!_path!") do (
-    endlocal
-    set "%~1=%%c"
-)
-exit /b 0
-
-
-:hexlify   input_file  output_file  [--eol hex]
-setlocal EnableDelayedExpansion EnableExtensions
-set "_eol=0d 0a"
-set parse_args.args= ^
-    ^ "-e --eol     :var:_eol"
-call :parse_args %*
-set "_eol_len=2"
-if /i "!_eol!" == "0d 0a" set "_eol_len=5"
-
-set "raw_hex_file=raw_hex"
-pushd "!temp_path!" && (
-    for %%f in ("!raw_hex_file!") do set "raw_hex_file=%%~ff"
-    popd
-)
-if exist "!raw_hex_file!" del /f /q "!raw_hex_file!"
-certutil -encodehex "%~f1" "!raw_hex_file!" > nul || exit /b 1
-rem Group hex according to EOL
-> "%~f2" (
-    set "_hex="
-    for /f "usebackq tokens=1*" %%a in ("!raw_hex_file!") do (
-        set "_input=%%b"
-        set "_hex=!_hex! !_input:~0,48!"
-        if not "!_hex:~7680!" == "" call :hexlify._format
-    )
-    call :hexlify._format
-    echo=!_hex!
-    set "_hex="
-)
-exit /b 0
-
-:hexlify._format
-set "_hex=!_hex!$"
-set "_hex=!_hex:  = !"
-set _hex=!_hex:%_eol%=%_eol%^
-%=REQUIRED=%
-!
-for /f "tokens=*" %%a in ("!_hex!") do (
-    set "_hex=%%a"
-    if /i "!_hex:~-%_eol_len%,%_eol_len%!" == "%_eol%" echo !_hex!
-)
-if not "!_hex:~7680!" == "" (
-    < nul set /p "=!_hex:~0,-3!"
-    set "_hex=!_hex:~-3,3!"
-)
-set "_hex=!_hex:~0,-1!"
-exit /b
-
-
-:fix_eol
-rem The label below is an alternative label if the main label cannot be found
-:fix_eol.alt1
-rem THIS IS REQUIRED
-:fix_eol.alt2
-for %%n in (1 2) do call :check_win_eol.alt%%n --check-exist 2> nul && (
-    call :check_win_eol.alt%%n || (
-        echo Converting EOL...
-        type "%~f0" | more /t4 > "%~f0.tmp" && (
-            move "%~f0.tmp" "%~f0" > nul && (
-                echo Convert EOL done
-                echo Script will exit. Press any key to continue...
-                pause > nul
-                exit 0
-            )
-        )
-        ( 1>&2 echo warning: Convert EOL failed )
-        exit /b 1
-    )
-    exit /b 0
-)
-( 1>&2 echo error: failed to call check_win_eol^(^) )
-exit /b 1
-
-
-:check_win_eol   [--check-exist]
-rem The label below is an alternative label if the main label cannot be found
-:check_win_eol.alt1
-rem THIS IS REQUIRED
-:check_win_eol.alt2
-for %%f in (-c --check-exist) do if /i "%1" == "%%f" exit /b 0
-@call :check_win_eol._test 2> nul && exit /b 0 || exit /b 1
-rem  1  DO NOT REMOVE THIS COMMENT SECTION, IT IS IMPORTANT FOR THIS FUNCTION TO WORK CORRECTLY                               #
-rem  2  DO NOT MODIFY THIS COMMENT SECTION IF YOU DON'T KNOW WHAT YOU ARE DOING                                               #
-rem  3                                                                                                                        #
-rem  4  Length of this comment section should be at most 4095 characters if EOL is LF only (Unix)                             #
-rem  5  Comment could contain anything, but it is best to set it to empty space                                               #
-rem  6  so your code editor won't slow down when scrolling through this section                                               #
-rem  7                                                                                                                        #
-rem  8                                                                                                                        #
-rem  9                                                                                                                        #
-rem 10                                                                                                                        #
-rem 11                                                                                                                        #
-rem 12                                                                                                                        #
-rem 13                                                                                                                        #
-rem 14                                                                                                                        #
-rem 15                                                                                                                        #
-rem 16                                                                                                                        #
-rem 17                                                                                                                        #
-rem 18                                                                                                                        #
-rem 19                                                                                                                        #
-rem 20                                                                                                                        #
-rem 21                                                                                                                        #
-rem 22                                                                                                                        #
-rem 23                                                                                                                        #
-rem 24                                                                                                                        #
-rem 25                                                                                                                        #
-rem 26                                                                                                                        #
-rem 27                                                                                                                        #
-rem 28                                                                                                                        #
-rem 29                                                                                                                        #
-rem 30                                                                                                                        #
-rem 31                                                                                                                        #
-rem 32  LAST LINE: should be 1 character shorter than the rest                                              DO NOT MODIFY -> #
-:check_win_eol._test
-@exit /b 0
-
-
-:download_file   link  save_path
-if exist "%~2" del /f /q "%~2"
-if not exist "%~dp2" md "%~dp2"
-powershell -Command "(New-Object Net.WebClient).DownloadFile('%~1', '%~2')"
-if not exist "%~2" exit /b 1
-exit /b 0
-
-
-:get_os   return_var  [--name]
-for /f "tokens=4-5 delims=. " %%i in ('ver') do set "%~1=%%i.%%j"
-if /i "%~2" == "--name" (
-    if "!%~1!" == "10.0" set "%~1=Windows 10"
-    if "!%~1!" == "6.3" set "%~1=Windows 8.1"
-    if "!%~1!" == "6.2" set "%~1=Windows 8"
-    if "!%~1!" == "6.1" set "%~1=Windows 7"
-    if "!%~1!" == "6.0" set "%~1=Windows Vista"
-    if "!%~1!" == "5.2" set "%~1=Windows XP 64-Bit"
-    if "!%~1!" == "5.1" set "%~1=Windows XP"
-    if "!%~1!" == "5.0" set "%~1=Windows 2000"
-)
-exit /b 0
-
-
-:watchvar   [-i]  [-n]
-setlocal EnableDelayedExpansion EnableExtensions
-cd /d "!temp_path!"
-for %%d in ("watchvar") do (
-    if not exist "%%~d" md "%%~d"
-    cd /d "%%~d"
-)
-for %%x in (txt hex) do (
-    if exist "old.%%x" del /f /q "old.%%x"
-    if exist "latest.%%x" ren "latest.%%x" "old.%%x"
-)
-(
-    endlocal
-    set > "%cd%\latest.txt"
-    setlocal EnableDelayedExpansion EnableExtensions
-    cd /d "%cd%"
-)
-for %%v in (_init_only  _list_names) do set "%%v="
-set parse_args.args= ^
-    ^ "-i --initialize  :flag:_init_only=true" ^
-    ^ "-n --name        :flag:_list_names=true"
-call :parse_args %*
-
-rem Convert to hex and format
-call :hexlify "latest.txt" "latest.tmp"
-> "latest.hex" (
-    for /f "usebackq tokens=*" %%o in ("latest.tmp") do (
-        set "_hex=%%o"
-        set "_hex=!_hex:3d=#_!"
-        set "_hex=!_hex: =!"
-        for /f "tokens=1* delims=#" %%a in ("!_hex!") do (
-            set "_hex=%%a 3d %%b"
-            set "_hex=!_hex:#=3d!"
-            set "_hex=!_hex:_=!"
-        )
-        echo=!_hex!
-    )
-)
-
-rem Count variable
-set "_var_count=0"
-for /f "usebackq tokens=*" %%o in ("latest.hex") do set /a "_var_count+=1"
-
-if defined _init_only (
-    echo Initial variables: !_var_count!
-    exit /b 0
-)
-
-set "_new_sym=+"
-set "_deleted_sym=-"
-set "_changed_sym=~"
-set "_new_hex_=6E6577"
-set "_deleted_hex=64656C65746564"
-set "_changed_hex=6368616E676564"
-set "_states=new deleted changed"
-
-rem Compare variables
-for %%s in (!_states!) do set "_%%s_count=0"
-> "changes.hex" (
-    for /f "usebackq tokens=1-3 delims= " %%a in ("latest.hex") do (
-        set "_old_value="
-        for /f "usebackq tokens=1-3 delims= " %%x in ("old.hex") do if "%%a" == "%%x" set "_old_value=%%z"
-        if defined _old_value (
-            if not "%%c" == "!_old_value!" (
-                set /a "_changed_count+=1"
-                echo !_changed_hex!20 %%a 0D0A
-            )
-        ) else (
-            echo !_new_hex_!20 %%a 0D0A
-            set /a "_new_count+=1"
-        )
-    )
-    for /f "usebackq tokens=1 delims= " %%a in ("old.hex") do (
-        set "_value_found="
-        for /f "usebackq tokens=1 delims= " %%x in ("latest.hex") do if "%%a" == "%%x" set "_value_found=true"
-        if not defined _value_found (
-            echo !_deleted_hex!20 %%a 0D0A
-            set /a "_deleted_count+=1"
-        )
-    )
-)
-if exist "changes.txt" del /f /q "changes.txt"
-certutil -decodehex "changes.hex" "changes.txt" > nul
-
-if defined _list_names (
-    echo Variables: !_var_count!
-    for %%s in (!_states!) do if not "!_%%s_count!" == "0" (
-         < nul set /p "=[!_%%s_sym!!_%%s_count!] "
-        for /f "usebackq tokens=1* delims= " %%a in ("changes.txt") do (
-            if "%%a" == "%%s" < nul set /p "=%%b "
-        )
-        echo=
-    )
-) else echo Variables: !_var_count! [+!_new_count!/~!_changed_count!/-!_deleted_count!]
-exit /b 0
-
-
-:is_echo_on
-@(
-    echo > "%temp%\echo_test"
-    type "%temp%\echo_test" | find /i "on" && exit /b 0
-) > nul 2>&1
-@exit /b 1
-
-
-:capchar   character1  [character2 [...]]
-if "%~1" == "*" call :capchar BS TAB LF CR ESC _ DEL DQ NL
-if /i "%~1" == "BS" for /f %%a in ('"prompt $h & for %%b in (1) do rem"') do set "BS=%%a"
-if /i "%~1" == "TAB" for /f "delims= " %%t in ('robocopy /l . . /njh /njs') do set "TAB=%%t"
-if /i "%~1" == "LF" set LF=^
-%=REQUIRED=%
-%=REQUIRED=%
-if /i "%~1" == "CR" for /f %%a in ('copy /z "%ComSpec%" nul') do set "CR=%%a"
-if /i "%~1" == "ESC" for /f %%a in ('"prompt $E & for %%b in (1) do rem"') do set "ESC=%%a"
-if /i "%~1" == "_" call :capchar "BS" & set "_=_!BS! !BS!"
-if /i "%~1" == "DEL" call :capchar "BS" & set "DEL=!BS! !BS!"
-if /i "%~1" == "DQ" call :capchar "BS" & set DQ="!BS! !BS!
-if /i "%~1" == "NL" call :capchar "LF" & set "NL=^^!LF!!LF!^^"
-shift /1
-if not "%1" == "" goto capchar
-exit /b 0
-
-
-:color2seq   return_var  color
-set "%~1=%~2"
-set "%~1=[!%~1:~0,1!;!%~1:~1,1!m"
-for %%t in (
-    0--40-30  1--44-34  2--42-32  3--46-36
-    4--41-31  5--45-35  6--43-33  7--47-37
-    8-100-90  9-104-94  A-102-92  B-106-96
-    C-101-91  D-105-95  E-103-93  F-107-97
-) do for /f "tokens=1-3 delims=-" %%a in ("%%t") do (
-    set "%~1=!%~1:[%%a;=[%%b;!"
-    set "%~1=!%~1:;%%am=;%%cm!"
-)
-exit /b 0
-
-
-:setup_clearline   return_var
-setlocal EnableDelayedExpansion
-set "_index=0"
-for /f "usebackq tokens=2 delims=:" %%a in (`call ^| mode con`) do (
-    set /a "_index+=1"
-    if "!_index!" == "2" set /a "_width=%%a"
-)
-for /f "tokens=4 delims=. " %%v in ('ver') do (
-    endlocal
-    set "%~1="
-    if %%v GEQ 10 (
-        for /l %%n in (1,1,%_width%) do set "%~1=!%~1! "
-        set "%~1=_!CR!!%~1!!CR!"
-    ) else for /l %%n in (1,1,%_width%) do set "%~1=!%~1!!DEL!"
-)
-exit /b 0
-
-
-:parse_version   return_var  version
-setlocal EnableDelayedExpansion
-set "_segments=v%~2"
-for %%t in (
-    " ="
-    ".= " "-=" "_="
-    "alpha=a"
-    "beta=b"
-    "preview=c" "pre=c" "rc=c"
-    "post=p" "rev=p" "r=p"
-    "dev=d"
-) do set "_segments=!_segments:%%~t!"
-for %%s in (a b c p d) do (
-    set "_segments=!_segments:%%s= %%s!"
-    set "_segments=!_segments:%%s =%%s!"
-)
-set "_segments=!_segments:~1!"
-set "_result="
-set "_buffer="
-for %%s in (!_segments!) do (
-    set "_segment=%%s"
-    set "_type="
-    set "_number="
-    if "!_segment:~0,1!" GTR "9" (
-        for %%t in (
-            "D:p"
-            "Ba:a" "Bb:b" "Bc:c"
-            "A:d"
-        ) do for /f "tokens=1-2 delims=:" %%a in (%%t) do (
-            if "!_segment:~0,1!" == "%%b" set "_type=%%a"
-        )
-        set "_number=!_segment:~1!"
-    )
-    if not defined _type (
-        set "_type=E"
-        set "_number=!_segment!"
-    )
-    set "_number=000!_number!"
-    set "_number=!_number:~-3,3!"
-    if not "!_type!" == "E" set "_buffer="
-    set "_buffer=!_buffer!!_type!!_number!"
-    if not "!_type!,!_number!" == "E,000" (
-        set "_result=!_result!!_buffer!"
-        set "_buffer="
-    )
-)
-set "_result=!_result!C"
-for /f "tokens=*" %%r in ("!_result!") do (
-    endlocal
-    set "%~1=%%r"
-)
-exit /b 0
-
-rem ======================================== Framework ========================================
-
-:framework.__init__
-rem Framework of the script
-call %batchlib%:extract_func "batchlib-min.bat" ^
-    ^ ^"module.entry_point module.read_metadata module.is_module ^
-    ^   updater parse_args^" ^
-    ^ > "!SOFWARE.name!.framework.bat"
-exit /b 0
-
-
-:module.entry_point   [--module=<name>]  [args]
-@if /i not "%~1" == "--module" @goto __main__
-@if /i #%1 == #"%~1" @goto __main__
-@setlocal DisableDelayedExpansion
-@set module.entry_point.args=%*
-@setlocal EnableDelayedExpansion
-@for /f "tokens=1* delims== " %%a in ("!module.entry_point.args!") do @(
-    endlocal
-    endlocal
-    call :scripts.%%b
-)
-@exit /b %errorlevel%
-
-
-:module.read_metadata   return_prefix  script_path
-for %%v in (
-    name version
-    author license
-    description release_date
-    url download_url
-) do set "%~1%%v="
-call "%~2" --module=lib :metadata "%~1" || exit /b 1
-exit /b 0
-
-
-:module.is_module   input_file
-setlocal EnableDelayedExpansion
-set /a "_missing=0xF"
-for /f "usebackq tokens=* delims=@ " %%a in ("%~f1") do (
-    for /f "tokens=1-2 delims= " %%b in ("%%a") do (
-        if /i "%%b %%c" == "goto module.entry_point" set /a "_missing&=~0x1"
-        if /i "%%b" == ":module.entry_point" set /a "_missing&=~0x2"
-        if /i "%%b" == ":metadata" set /a "_missing&=~0x4"
-        if /i "%%b" == ":scripts.lib" set /a "_missing&=~0x8"
-    )
-)
-if not "!_missing!" == "0" exit /b 1
-set "_callable="
-for %%x in (.bat .cmd) do if "%~x1" == "%%x" set "_callable=true"
-if not defined _callable exit /b 2
-exit /b 0
-
-
-:updater   script_path  [-f]  [-u]  [-d url]
-setlocal EnableDelayedExpansion
-for %%v in (_force_upgrade _upgrade _download_url) do set "%%v="
-set parse_args.args= ^
-    ^ "-f --force-upgrade   :flag:_force_upgrade=true" ^
-    ^ "-u --upgrade         :flag:_upgrade=true" ^
-    ^ "-d --download-url    :var:_download_url"
-call :parse_args %*
-if defined _force_upgrade set "_upgrade=true"
-cd /d "!temp_path!"
-set "_downloaded=!cd!\latest_version.bat"
-call :module.is_module "%~1" || ( 1>&2 echo error: failed to read module information & exit /b 10 )
-call :module.read_metadata _module. "%~1" || ( 1>&2 echo error: failed to read module information & exit /b 11 )
-if not defined _download_url set "_download_url=!_module.download_url!"
-call %batchlib%:download_file "!_download_url!" "!_downloaded!" || ( 1>&2 echo error: download failed & exit /b 20 )
-call :module.is_module "!_downloaded!" || ( 1>&2 echo error: failed to read update information & exit /b 30 )
-call :module.read_metadata _downloaded. "!_downloaded!"  || ( 1>&2 echo error: failed to read update information & exit /b 31 )
-if not defined _downloaded.version ( 1>&2 echo error: failed to read update information & exit /b 32 )
-if /i not "!_downloaded.name!" == "!_module.name!" ( 1>&2 echo error: module name does not match & exit /b 40 )
-call :parse_version _module.parsed_version "!_module.version!"
-call :parse_version _downloaded.parsed_version "!_downloaded.version!"
-if not defined _force_upgrade (
-    if "!_downloaded.parsed_version!" EQU "!_module.parsed_version!" ( echo You are using the latest version & exit /b 99 )
-    if "!_downloaded.parsed_version!" LSS "!_module.parsed_version!" ( echo No updates available & exit /b 99 )
-)
-if defined _show (
-    call %batchlib%:diffdate update_age !date:~4! !_downloaded.release_date! 2> nul && (
-        echo !_downloaded.description! !_downloaded.version! is now available ^(!update_age! days ago^)
-    ) || echo !_downloaded.description! !_downloaded.version! is now available ^(since !_downloaded.release_date!^)
-    del /f /q "!_downloaded!"
-)
-if not defined _upgrade exit /b 0
-echo Updating script...
-move "!_downloaded!" "%~f1" > nul && (
-    echo Update successful
-    if "%~f1" == "%~f0" (
-        echo Script will exit. Press any key to continue...
-        pause > nul
-        exit 0
-    )
-) || ( 1>&2 echo error: update failed & exit /b 1 )
-exit /b 0
-
-
-:parse_args   %*
-set "_store_var="
-set "parse_args.argc=1"
-set "parse_args.shift="
-call :parse_args._loop %*
-set /a "parse_args.argc-=1"
-set "parse_args._store_var="
-set "parse_args._value="
-(
-    goto 2> nul
-    for %%n in (!parse_args.shift!) do shift /%%n
-    for %%v in (args shift) do set "parse_args.%%v="
-    ( call )
-)
-exit /b 1
-#+++
-
-:parse_args._loop
-set _value=%1
-if not defined _value exit /b
-set "_shift="
-if defined parse_args._store_var (
-    set "!parse_args._store_var!=%~1"
-    set "parse_args._store_var="
-    set "_shift=true"
-)
-for %%o in (!parse_args.args!) do for /f "tokens=1-2* delims=:" %%b in (%%o) do (
-    for %%f in (%%b) do if /i "!_value!" == "%%f" (
-        if /i "%%c" == "flag" set "%%d"
-        if /i "%%c" == "var" set "parse_args._store_var=%%d"
-        if /i "%%c" == "list" (
-            for /f "tokens=1* delims==" %%v in ("%%~d") do set "%%v=!%%v!%%w"
-        )
-        set "_shift=true"
-    )
-)
-if defined _shift (
-    set "parse_args.shift=!parse_args.shift! !parse_args.argc!"
-) else set /a "parse_args.argc+=1"
-shift /1
-goto parse_args._loop
-
-rem ======================================== Assets ========================================
-:assets.__init__     Additional data to bundle
-exit /b 0
-
-rem ================================ GUI Packs ================================
-:assets.style.__init__
-exit /b 0
-
-
-$ GUI lines_n_pipes     Lines & Pipes
-$ GUI boxchar           Box Characters
 
 rem ======================== Lines & Pipes ========================
 
@@ -3258,78 +2582,39 @@ goto :EOF
 
 rem ======================== Box Characters ========================
 
-:Style_boxchar.charset.ori
-rem                 ANSI   UTF8     KEYBOARD
-set "hLine="        CE94    C4      ALT+0196
-set "vLine="        C2B3    B3      ALT+0179
-set "cLine="        CE95    C5      ALT+0197
-set "hBorder="      CE9D    CD      ALT+0205
-set "vBorder="      CE8A    BA      ALT+0186
-set "cBorder="      CE9E    CE      ALT+0206
-set "uEdge="        CE9B    CB      ALT+0203
-set "dEdge="        CE9A    CA      ALT+0202
-set "lEdge="        CE9C    CC      ALT+0204
-set "rEdge="        CE89    B9      ALT+0185
-set "ulCorner="     CE99    C9      ALT+0201
-set "urCorner="     C2BB    BB      ALT+0187
-set "dlCorner="     CE98    C8      ALT+0200
-set "drCorner="     CE8C    BC      ALT+0188
-goto :EOF
-
-
-:Style_boxchar.splash_screen.ori
-echo                       ²²²²² ²   ² ²²²²  ²²²²² ²  ²² ²   ²
-echo                       ²     ²   ² ²   ² ²   ² ² ²²  ²   ²
-echo                       ²²²²² ²   ² ²   ² ²   ² ²²²   ²   ²
-echo                           ² ²   ² ²   ² ²   ² ² ²²  ²   ²
-echo                       ²²²²² ²²²²² ²²²²  ²²²²² ²  ²² ²²²²²  !SOFTWARE.VERSION!
-echo=
-echo                                ΙΝΝΝΝΝΛΝΝΝΝΝΛΝΝΝΝΝ»
-echo                                Ί ³8³ Ί ³ ³3Ί ³9³ Ί
-echo                                Ί5³ ³3Ί7³ ³ Ί8³4³ Ί
-echo                                Ί ³4³6Ί ³ ³2Ί ³ ³5Ί
-echo                                ΜΝΝΝΝΝΞΝΝΝΝΝΞΝΝΝΝΝΉ
-echo                                Ί4³6³1Ί ³ ³7Ί ³ ³9Ί
-echo                                Ί ³3³ Ί ³ ³ Ί ³1³ Ί
-echo                                Ί2³ ³ Ί1³ ³ Ί6³8³3Ί
-echo                                ΜΝΝΝΝΝΞΝΝΝΝΝΞΝΝΝΝΝΉ
-echo                                Ί1³ ³ Ί9³ ³ Ί7³2³ Ί
-echo                                Ί ³9³4Ί ³ ³8Ί5³ ³1Ί
-echo                                Ί ³2³ Ί4³ ³ Ί ³3³ Ί
-echo                                ΘΝΝΝΝΝΚΝΝΝΝΝΚΝΝΝΝΝΌ
-echo=
-echo                       ΙΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝ»
-echo                       Ί          Made by wthe22          Ί
-echo                       Ί   http://winscr.blogspot.com/    Ί
-echo                       ΘΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΝΌ
-goto :EOF
-
-
 :Style_boxchar.charset
-(
-    echo 7365742022684C696E653DC4220D0A
-    echo 7365742022764C696E653DB3220D0A
-    echo 7365742022634C696E653DC5220D0A
-    echo 736574202268426F726465723DCD220D0A
-    echo 736574202276426F726465723DBA220D0A
-    echo 736574202263426F726465723DCE220D0A
-    echo 736574202275456467653DCB220D0A
-    echo 736574202264456467653DCA220D0A
-    echo 73657420226C456467653DCC220D0A
-    echo 736574202272456467653DB9220D0A
-    echo 7365742022756C436F726E65723DC9220D0A
-    echo 73657420227572436F726E65723DBB220D0A
-    echo 7365742022646C436F726E65723DC8220D0A
-    echo 73657420226472436F726E65723DBC220D0A
-) > "!temp_path!\_boxchar.hex"
-if exist "!temp_path!\_boxchar.bat" del /f /q "!temp_path!\_boxchar.bat"
-certutil -decodehex "!temp_path!\_boxchar.hex" "!temp_path!\_boxchar.bat" > nul 2> nul
-call "!temp_path!\_boxchar.bat"
-goto :EOF
+rem            UTF8 ANSI   ALT+KEY
+set hLine=      C4  CE94    0196
+set vLine=      B3  C2B3    0179
+set cLine=      C5  CE95    0197
+set hBorder=    CD  CE9D    0205
+set vBorder=    BA  CE8A    0186
+set cBorder=    CE  CE9E    0206
+set uEdge=      CB  CE9B    0203
+set dEdge=      CA  CE9A    0202
+set lEdge=      CC  CE9C    0204
+set rEdge=      B9  CE89    0185
+set ulCorner=   C9  CE99    0201
+set urCorner=   BB  C2BB    0187
+set dlCorner=   C8  CE98    0200
+set drCorner=   BC  CE8C    0188
+for %%v in (
+    hLine vLine cLine
+    hBorder vBorder cBorder
+    uEdge dEdge lEdge rEdge
+    ulCorner urCorner dlCorner drCorner
+) do for /f "tokens=1" %%c in ("!%%v!") do set "%%v=%%c"
+call :hex2str ^
+    ^ hLine vLine cLine ^
+    ^ hBorder vBorder cBorder ^
+    ^ uEdge dEdge lEdge rEdge ^
+    ^ ulCorner urCorner dlCorner drCorner ^
+    ^ %=END=%
+exit /b 0
 
 
 :Style_boxchar.splash_screen
-call 2> "!temp_path!\_boxchar.hex"
+call 2> "!tmp_dir!\_boxchar.hex"
 for %%h in (
     B2B2B2B2B220B2202020B220B2B2B2B22020B2B2B2B2B220B22020B2B220B2202020B20D0A.name
     B22020202020B2202020B220B2202020B220B2202020B220B220B2B22020B2202020B20D0A.name
@@ -3360,54 +2645,54 @@ for %%h in (
     if /i "%%~xh" == ".sudoku" < nul set /p "=6563686F2020202020202020202020202020202020202020202020202020202020202020"
     if /i "%%~xh" == ".textbox" < nul set /p "=6563686F2020202020202020202020202020202020202020202020"
     echo=%%~nh
-) >> "!temp_path!\_boxchar.hex"
-if exist "!temp_path!\_boxchar.bat" del /f /q "!temp_path!\_boxchar.bat"
-certutil -decodehex "!temp_path!\_boxchar.hex" "!temp_path!\_boxchar.bat" > nul 2> nul
-call "!temp_path!\_boxchar.bat"
+) >> "!tmp_dir!\_boxchar.hex"
+if exist "!tmp_dir!\_boxchar.bat" del /f /q "!tmp_dir!\_boxchar.bat"
+certutil -decodehex "!tmp_dir!\_boxchar.hex" "!tmp_dir!\_boxchar.bat" > nul 2> nul
+call "!tmp_dir!\_boxchar.bat"
 goto :EOF
 
 
-rem ================================ Difficulty List ================================
-:assets.difficulty.__init__
+rem ======================================== Difficulty ========================================
+
+:Difficulty.load
+set "Difficulty.list=beginner practice easy random"
+set "Difficulty_beginner.name=Beginner"
+set "Difficulty_practice.name=Easy Practice"
+set "Difficulty_easy.name=Easy"
+set "Difficulty_random.name=Random"
 exit /b 0
 
 
-$ Difficulty 67-75  Beginner
-$ Difficulty 40-67  Easy (Practice)
-$ Difficulty 20-40  Easy
-$ Difficulty rand   Random
-
-
-:Difficulty_67-75
+:Difficulty_beginner
 set "method_used=2"
 set /a "min_givens=!total_cells! * 2 / 3"
 set /a "max_givens=!total_cells! * 3 / 4"
-call %batchlib%:rand targetGivens "!total_cells! * 2 / 3"   "!total_cells! * 3 / 4"
-goto :EOF
+call :rand targetGivens "!total_cells! * 2 / 3"   "!total_cells! * 3 / 4"
+exit /b 0
 
 
-:Difficulty_40-67
+:Difficulty_practice
 set "method_used=2"
 set /a "min_givens=!total_cells! * 2 / 5 + 1"
 set /a "max_givens=!total_cells! * 2 / 3"
-call %batchlib%:rand targetGivens "!total_cells! * 4 / 9"   "!total_cells! * 5 / 9"
-goto :EOF
+call :rand targetGivens "!total_cells! * 4 / 9"   "!total_cells! * 5 / 9"
+exit /b 0
 
 
-:Difficulty_20-40
+:Difficulty_easy
 set "method_used=2"
 set /a "min_givens=!total_cells! / 5 + 1"
 set /a "max_givens=!total_cells! * 2 / 5 + 1"
 set "targetGivens=0"
-goto :EOF
+exit /b 0
 
 
-:Difficulty_rand
+:Difficulty_random
 set "method_used=BF"
 set /a "min_givens=!total_cells! / 5 + 1"
 set /a "max_givens=!total_cells! * 2 / 5 + 1"
 set "targetGivens=0"
-goto :EOF
+exit /b 0
 
 rem ================================ Built-in Sudoku ================================
 :assets.sudoku.__init__
@@ -3508,9 +2793,842 @@ C1004E9B0F73000050030000000000009B000130D04C0620000GA00D005813001GCF50E800900B60
 600008940900006100070040000200610000000000200089002000000060005000000030800001600
 #end
 
-rem ======================================== End of Script ========================================
-:EOF     May be needed if command extenstions are disabled
-rem Anything beyond this are not part of the code
+
+rem ############################################################################
+rem End
+rem ############################################################################
+
+:EOF
+@rem DO NOT WRITE ANYTHING YOU NEED TO KEEP BELOW THIS FUNCTION.
+@rem ANYTHING BEYOND THIS FUNCTION WILL BE REMOVED WHEN ADDING DEPENDENCIES.
 exit /b
+
+
+:: Automatically Added by batchlib 3.0b3 on Mon 09/20/2021 20:09:32.32
+
+:rand <return_var> <minimum> <maximum>
+set /a "%~1=((!random!<<16) + (!random!<<1) + (!random!>>14)) %% ((%~3)-(%~2)+1) + (%~2)"
+exit /b 0
+
+
+:strip_dquotes <input_var>
+if "!%~1:~0,1!!%~1:~-1,1!" == ^"^"^"^" set "%~1=!%~1:~1,-1!"
+exit /b 0
+
+
+:difftime <return_var> <end_time> [start_time] [--no-fix]
+set "%~1=0"
+for %%t in ("%~2.0" "%~3.0") do for /f "tokens=1-4 delims=:., " %%a in ("%%~t.0.0.0.0") do (
+    set /a "%~1+=(1%%a*2-2%%a)*360000 + (1%%b*2-2%%b)*6000 + (1%%c*2-2%%c)*100 + (1%%d*2-2%%d)*100/(2%%d-1%%d)"
+    set /a "%~1*=-1"
+)
+if /i not "%4" == "--no-fix" if "!%~1:~0,1!" == "-" set /a "%~1+=8640000"
+exit /b 0
+
+
+:ftime <return_var> <centiseconds>
+setlocal EnableDelayedExpansion
+set "_result="
+set /a "_remainder=%~2"
+for %%s in (360000 6000 100 1) do (
+    set /a "_digits=!_remainder! / %%s + 100"
+    set /a "_remainder%%= %%s"
+    set "_result=!_result!!_digits:~-2,2!:"
+)
+set "_result=!_result:~0,-4!.!_result:~-3,2!"
+for /f "tokens=*" %%r in ("!_result!") do (
+    endlocal
+    set "%~1=%%r"
+)
+exit /b 0
+
+
+:diffdate <return_var> <end_date> [start_date]
+setlocal EnableDelayedExpansion
+set "_difference=0"
+set "_args=/%~2"
+if "%~3" == "" (
+    set "_args=!_args! /1/01/1970"
+) else set "_args=!_args! /%~3"
+set "_args=!_args:/ =/!"
+set "_args=!_args:/0=/!"
+for %%d in (!_args!) do for /f "tokens=1-3 delims=/" %%a in ("%%d") do (
+    set /a "_difference+=(%%c-1970)*365 + (%%c/4 - %%c/100 + %%c/400 - 477) + (336 * (%%a-1) + 7) / 11 + %%b - 2"
+    if %%a LEQ 2 set /a "_difference+=2-(((%%c %% 4)-8)/-8)*((((%%c %% 400)-512)/-512)+((((%%c %% 100)-128)/-128)-1)/-1)"
+    set /a "_difference*=-1"
+)
+for /f "tokens=*" %%r in ("!_difference!") do (
+    endlocal
+    set "%~1=%%r"
+)
+exit /b 0
+
+
+:check_path [-e|-n] [-f|-d] <path_var>
+setlocal EnableDelayedExpansion EnableExtensions
+for %%v in (_require_attrib  _require_exist) do set "%%v="
+call :argparse ^
+    ^ "#1:store                     :_path_var" ^
+    ^ "-e,--exist:store_const       :_require_exist=true" ^
+    ^ "-n,--not-exist:store_const   :_require_exist=false" ^
+    ^ "-f,--file:store_const        :_require_attrib=-" ^
+    ^ "-d,--directory:store_const   :_require_attrib=d" ^
+    ^ -- %* || exit /b 2
+set "_path=!%_path_var%!"
+if "!_path:~0,1!!_path:~-1,1!" == ^"^"^"^" set "_path=!_path:~1,-1!"
+if not defined _path ( 1>&2 echo%0: Path not defined & exit /b 3 )
+set "_temp=!_path!"
+if "!_path:~1,1!" == ":" set "_temp=!_path:~0,1!!_path:~2!"
+for /f tokens^=1-2*^ delims^=:?^"^<^>^| %%a in ("Q?_!_temp!_") do (
+    if not "%%c" == "" ( 1>&2 echo%0: Invalid path characters & exit /b 3 )
+)
+for /f "tokens=1-2* delims=*" %%a in ("Q*_!_temp!_") do (
+    if not "%%c" == "" ( 1>&2 echo%0: Wildcards are not allowed & exit /b 3 )
+)
+if "!_path:~1!" == ":" set "_path=!_path!\"
+set "_file_exist=false"
+for %%f in ("!_path!") do (
+    set "_path=%%~ff"
+    set "_attrib=%%~af"
+)
+if defined _attrib (
+    set "_attrib=!_attrib:~0,1!"
+    set "_file_exist=true"
+)
+if "!_attrib!" == "d" (
+    for %%f in ("!_path!\.") do set "_path=%%~ff"
+)
+if defined _require_exist if not "!_file_exist!" == "!_require_exist!" (
+    if "!_require_exist!" == "true" 1>&2 echo%0: Input does not exist
+    if "!_require_exist!" == "false" 1>&2 echo%0: Input already exist
+    exit /b 2
+)
+if "!_file_exist!" == "true" if defined _require_attrib if not "!_attrib!" == "!_require_attrib!" (
+    if defined _require_exist (
+        if "!_require_attrib!" == "d" 1>&2 echo%0: Input is not a folder
+        if "!_require_attrib!" == "-" 1>&2 echo%0: Input is not a file
+    ) else (
+        if "!_require_attrib!" == "d" 1>&2 echo%0: Input must be a new or existing folder, not a file
+        if "!_require_attrib!" == "-" 1>&2 echo%0: Input must be a new or existing file, not a folder
+    )
+    exit /b 2
+)
+for /f "tokens=* delims=" %%c in ("!_path!") do (
+    endlocal
+    set "%_path_var%=%%c"
+)
+exit /b 0
+
+
+:watchvar [-i] [-n]
+setlocal EnableDelayedExpansion EnableExtensions
+cd /d "!tmp_dir!" 2> nul || cd /d "!tmp!"
+for %%d in ("watchvar") do (
+    if not exist "%%~d" md "%%~d"
+    cd /d "%%~d"
+)
+for %%x in (txt hex) do (
+    if exist "old.%%x" del /f /q "old.%%x"
+    if exist "latest.%%x" ren "latest.%%x" "old.%%x"
+)
+(
+    endlocal
+    set > "%cd%\latest.txt"
+    setlocal EnableDelayedExpansion EnableExtensions
+    cd /d "%cd%"
+)
+for %%v in (_init_only  _list_names) do set "%%v="
+call :argparse ^
+    ^ "-i,--initialize:store_const  :_init_only=true" ^
+    ^ "-n,--name:store_const        :_list_names=true" ^
+    ^ -- %* || exit /b 2
+rem Convert to hex and format
+call :hexlify "latest.txt" > "latest.hex.tmp"
+> "latest.hex" (
+    for /f "usebackq tokens=*" %%o in ("latest.hex.tmp") do (
+        set "_hex=%%o"
+        set "_hex=!_hex:3d=#_!"
+        set "_hex=!_hex: =!"
+        for /f "tokens=1* delims=#" %%a in ("!_hex!") do (
+            set "_hex=%%a 3d %%b"
+            set "_hex=!_hex:#=3d!"
+            set "_hex=!_hex:_=!"
+        )
+        echo=!_hex!
+    )
+)
+
+rem Count variable
+set "_var_count=0"
+for /f "usebackq tokens=*" %%o in ("latest.hex") do set /a "_var_count+=1"
+
+if defined _init_only (
+    echo Initial variables: !_var_count!
+    exit /b 0
+)
+
+set "_new_sym=+"
+set "_deleted_sym=-"
+set "_changed_sym=~"
+set "_new_hex_=6E6577"
+set "_deleted_hex=64656C65746564"
+set "_changed_hex=6368616E676564"
+set "_states=new deleted changed"
+
+rem Compare variables
+for %%s in (!_states!) do set "_%%s_count=0"
+> "changes.hex" (
+    for /f "usebackq tokens=1-3 delims= " %%a in ("latest.hex") do (
+        set "_old_value="
+        for /f "usebackq tokens=1-3 delims= " %%x in ("old.hex") do if "%%a" == "%%x" set "_old_value=%%z"
+        if defined _old_value (
+            if not "%%c" == "!_old_value!" (
+                set /a "_changed_count+=1"
+                echo !_changed_hex!20 %%a 0D0A
+            )
+        ) else (
+            echo !_new_hex_!20 %%a 0D0A
+            set /a "_new_count+=1"
+        )
+    )
+    for /f "usebackq tokens=1 delims= " %%a in ("old.hex") do (
+        set "_value_found="
+        for /f "usebackq tokens=1 delims= " %%x in ("latest.hex") do if "%%a" == "%%x" set "_value_found=true"
+        if not defined _value_found (
+            echo !_deleted_hex!20 %%a 0D0A
+            set /a "_deleted_count+=1"
+        )
+    )
+)
+if exist "changes.txt" del /f /q "changes.txt"
+certutil -decodehex "changes.hex" "changes.txt" > nul
+
+if defined _list_names (
+    echo Variables: !_var_count!
+    for %%s in (!_states!) do if not "!_%%s_count!" == "0" (
+         < nul set /p "=[!_%%s_sym!!_%%s_count!] "
+        for /f "usebackq tokens=1* delims= " %%a in ("changes.txt") do (
+            if "%%a" == "%%s" < nul set /p "=%%b "
+        )
+        echo=
+    )
+) else echo Variables: !_var_count! [+!_new_count!/~!_changed_count!/-!_deleted_count!]
+exit /b 0
+
+
+:hex2str <var> ...
+setlocal EnableDelayedExpansion
+cd /d "!tmp_dir!" 2> nul || cd /d "!tmp!"
+set "_var_count=0"
+for %%v in (%*) do (
+    set /a "_var_count+=1"
+    set "_hex2str_!_var_count!=%%v"
+)
+> ".hex2str._unfilled" (
+    for %%v in (%*) do echo set "%%v="
+)
+call :hexlify ".hex2str._unfilled" > ".hex2str._unfilled.hex"
+> ".hex2str.bat.hex" (
+    set "_var_count=0"
+    for /f "usebackq tokens=* delims=" %%a in (".hex2str._unfilled.hex") do (
+        set /a "_var_count+=1"
+        for %%i in (!_var_count!) do for %%v in (!_hex2str_%%i!) do (
+            set "_hex=%%a"
+            echo !_hex:~0,-8!!%%v!!_hex:~-8,8!
+        )
+    )
+)
+if exist ".hex2str.bat" del /f /q ".hex2str.bat"
+certutil -decodehex ".hex2str.bat.hex" ".hex2str.bat" > nul 2> nul
+for %%f in (".hex2str.bat") do (
+    endlocal
+    call "%%~ff"
+)
+exit /b 0
+
+
+:hexlify <input_file> <output_file> [--eol hex]
+setlocal EnableDelayedExpansion EnableExtensions
+for %%v in (_input_file _output_file) do set "%%v="
+set "_eol=0d 0a"
+call :argparse ^
+    ^ "#1:store         :_input_file" ^
+    ^ "#2:store         :_output_file" ^
+    ^ "-e,--eol:store   :_eol" ^
+    ^ -- %* || exit /b 2
+for %%v in (_input_file _output_file) do for %%f in ("!%%v!") do set "%%v=%%~ff"
+call :strlen _eol_len _eol
+cd /d "!tmp_dir!" 2> nul || cd /d "!tmp!"
+if exist "raw_hex" del /f /q "raw_hex"
+certutil -encodehex "!_input_file!" "raw_hex" > nul || (
+    1>&2 echo%0: encode failed exit /b 3
+)
+rem Group hex according to EOL
+set "_hex="
+for /f "usebackq tokens=1*" %%a in ("raw_hex") do (
+    set "_input=%%b"
+    set "_hex=!_hex! !_input:~0,48!"
+    if not "!_hex:~7680!" == "" call :hexlify._format
+)
+call :hexlify._format
+echo=!_hex!
+exit /b 0
+#+++
+
+:hexlify._format
+set "_hex=!_hex!$"
+set "_hex=!_hex:  = !"
+set _hex=!_hex:%_eol%=%_eol%^
+%=REQUIRED=%
+!
+for /f "tokens=*" %%a in ("!_hex!") do (
+    set "_hex=%%a"
+    if /i "!_hex:~-%_eol_len%,%_eol_len%!" == "%_eol%" echo !_hex!
+)
+if not "!_hex:~7680!" == "" (
+    < nul set /p "=!_hex:~0,-3!"
+    set "_hex=!_hex:~-3,3!"
+)
+set "_hex=!_hex:~0,-1!"
+exit /b
+
+
+:strlen <return_var> <input_var>
+set "%~1=0"
+if defined %~2 (
+    for /l %%b in (12,-1,0) do (
+        set /a "%~1+=(1<<%%b)"
+        for %%i in (!%~1!) do if "!%~2:~%%i,1!" == "" set /a "%~1-=(1<<%%b)"
+    )
+    set /a "%~1+=1"
+)
+exit /b 0
+
+
+:color2seq <return_var> <color>
+set "%~1=%~2"
+set "%~1=[!%~1:~0,1!;!%~1:~1,1!m"
+for %%t in (
+    0--40-30  1--44-34  2--42-32  3--46-36
+    4--41-31  5--45-35  6--43-33  7--47-37
+    8-100-90  9-104-94  A-102-92  B-106-96
+    C-101-91  D-105-95  E-103-93  F-107-97
+) do for /f "tokens=1-3 delims=-" %%a in ("%%t") do (
+    set "%~1=!%~1:[%%a;=[%%b;!"
+    set "%~1=!%~1:;%%am=;%%cm!"
+)
+exit /b 0
+
+
+:clear_line_macro <return_var> <width>
+setlocal EnableDelayedExpansion
+set "_return_var=%~1"
+set "_width=%~2"
+if not defined _width set "_width=80"
+call :capchar CR BACK
+call :get_os _os
+for /f "tokens=1 delims=. " %%a in ("!_os!") do set "_os=%%a"
+set "_result="
+if !_os! GEQ 10 (
+    for /l %%n in (1,1,%_width%) do set "_result=!_result! "
+    set "_result=_!CR!!_result!!CR!"
+) else for /l %%n in (1,1,%_width%) do set "_result=!_result!!BACK!"
+for /f "tokens=1-2 delims=:" %%q in ("Q:!_result!:Q") do (
+    endlocal
+    set "%_return_var%=%%r"
+)
+exit /b 0
+
+
+:capchar <char> ...
+setlocal EnableDelayedExpansion
+for %%v in (
+    BEL BS ESC TAB CR LF
+    BASE BACK DQ NL
+) do set "%%v="
+for %%a in (%*) do set "%%a=true"
+for %%a in (
+    "BASE: BS"
+    "BACK: BS"
+    "DQ: BS"
+    "NL: LF"
+) do for /f "tokens=1* delims=:" %%b in (%%a) do (
+    if defined %%b for %%v in (%%c) do set "%%v=true"
+)
+endlocal & (
+if /i "%BEL%" == "true" for /f "usebackq delims=" %%a in (
+    `forfiles /p "%~dp0." /m "%~nx0" /c "cmd /c echo 0x07"`
+) do set "BEL=%%a"
+if /i "%CR%" == "true" for /f %%a in ('copy /z "%ComSpec%" nul') do set "CR=%%a"
+if /i "%LF%" == "true" set LF=^
+%=REQUIRED=%
+%=REQUIRED=%
+if /i not "%BS%" == "" for /f %%a in ('"prompt $H & for %%b in (1) do rem"') do set "BS=%%a"
+if /i not "%TAB%" == "" for /f "delims= " %%t in ('robocopy /l . . /njh /njs') do set "TAB=%%t"
+if /i not "%ESC%" == "" for /f %%a in ('"prompt $E & for %%b in (1) do rem"') do set "ESC=%%a"
+if /i not "%BASE%" == "" set "BASE=_!BS! !BS!"
+if /i not "%BACK%" == "" set "BACK=!BS! !BS!"
+if /i not "%DQ%" == "" set DQ="!BS! !BS!
+if /i not "%NL%" == "" set "NL=^^!LF!!LF!^^"
+)
+exit /b 0
+
+
+:get_os <return_var> [--name]
+for /f "tokens=4 delims=[] " %%v in ('ver') do set "%~1=%%v"
+if /i "%~2" == "--name" (
+    for /f "tokens=1-2 delims=." %%a in ("!%~1!") do set "%~1=%%a.%%b"
+    if "!%~1!" == "10.0" set "%~1=Windows 10"
+    if "!%~1!" == "6.3" set "%~1=Windows 8.1"
+    if "!%~1!" == "6.2" set "%~1=Windows 8"
+    if "!%~1!" == "6.1" set "%~1=Windows 7"
+    if "!%~1!" == "6.0" set "%~1=Windows Vista"
+    if "!%~1!" == "5.2" set "%~1=Windows XP 64-Bit"
+    if "!%~1!" == "5.1" set "%~1=Windows XP"
+    if "!%~1!" == "5.0" set "%~1=Windows 2000"
+)
+exit /b 0
+
+
+:get_con_size <width_return_var> <height_return_var>
+setlocal EnableDelayedExpansion
+set "_index=0"
+for /f "usebackq tokens=2 delims=:" %%a in (`call ^| mode con`) do (
+    set /a "_index+=1"
+    if "!_index!" == "1" set /a "_height=%%a"
+    if "!_index!" == "2" set /a "_width=%%a"
+)
+set "_index="
+for /f "tokens=1-2 delims=x" %%a in ("!_width!x!_height!") do (
+    endlocal
+    set "%~1=%%a"
+    set "%~2=%%b"
+)
+exit /b 0
+
+
+:updater [-n] [-y] [-f] [-u url] <script_path>
+setlocal EnableDelayedExpansion
+for %%v in (_assume_yes _notify_only _force _dl_url) do set "%%v="
+call :argparse ^
+    ^ "#1:store                     :_this" ^
+    ^ "-n,--notify-only:store_const :_notify_only=true" ^
+    ^ "-y,--yes:store_const         :_assume_yes=true" ^
+    ^ "-f,--force:store_const       :_force=true" ^
+    ^ "-u,--download-url:store      :_dl_url" ^
+    ^ -- %* || exit /b 2
+for %%f in ("!_this!") do set "_this=%%~ff"
+cd /d "!tmp_dir!" 2> nul || cd /d "!tmp!"
+set "_other=!cd!\.updater.downloaded.bat"
+call "!_this!" -c :metadata _this. || (
+    1>&2 echo%0: Fail to read metadata & exit /b 3
+)
+if not defined _dl_url set "_dl_url=!_this.download_url!"
+if not defined _dl_url (
+    1>&2 echo%0: No download url found & exit /b 3
+)
+call :download_file "!_dl_url!" "!_other!" || (
+    1>&2 echo%0: Download failed & exit /b 3
+)
+call "!_other!" -c :metadata _other. || (
+    1>&2 echo%0: Fail to read downloaded metadata & exit /b 4
+)
+if not "!_other.name!" == "!_this.name!" (
+    1>&2 echo%0: warning: Script name is different: '!_this.name!' and '!_other.name!'
+)
+call :parse_version _this._p_ver "!_this.version!"
+call :parse_version _other._p_ver "!_other.version!"
+if "!_other._p_ver!" LSS "!_this._p_ver!" (
+    echo No updates are available
+) else if "!_other._p_ver!" == "!_this._p_ver!" (
+    echo You are using the latest version
+) else (
+    echo !_this.name! !_this.version! upgradable to !_other.name! !_other.version!
+)
+if not defined _force (
+    if "!_other._p_ver!" LEQ "!_this._p_ver!" exit /b 5
+)
+if defined _notify_only exit /b 0
+if not defined _assume_yes (
+    call :Input.yesno -d "N" -m "Proceed with update? [y/N] " || exit /b 5
+)
+(
+    copy /b /y /v "!_other!" "!_this!" > nul
+) && (
+    echo Update success
+    exit /b 0
+) || exit /b 6
+exit /b 1
+
+
+:download_file <url> <save_path>
+if exist "%~2" del /f /q "%~2"
+if not exist "%~dp2" md "%~dp2"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('%~1', '%~2')"
+if not exist "%~2" exit /b 1
+exit /b 0
+
+
+:ext.powershell
+powershell -Command "$PSVersionTable.PSVersion.ToString()"
+exit /b
+
+
+:parse_version <return_var> <version>
+set "%~1="
+setlocal EnableDelayedExpansion
+set "_version=#%~2"
+set "_version=!_version:+=+#!"
+for /f "tokens=1* delims=+" %%a in ("!_version!") do (
+    set "_public=%%a"
+    set "_local=+%%b"
+    if "!_local!" == "+" (
+        set "_local="
+    ) else set "_local=!_local:+#=+!"
+)
+for %%t in (
+    " ="
+    ".= " "-=" "_="
+    "alpha=a"
+    "beta=b"
+    "preview=c" "pre=c" "rc=c"
+    "post=p" "rev=p" "r=p"
+    "dev=d"
+) do set "_public=!_public:%%~t!"
+for %%s in (a b c p d) do (
+    set "_public=!_public:%%s= %%s!"
+    set "_public=!_public:%%s =%%s!"
+)
+set "_public=!_public:~1!"
+set "_result="
+set "_buffer="
+for %%s in (!_public!) do (
+    set "_segment=%%s"
+    set "_type="
+    set "_number="
+    if "!_segment:~0,1!" GTR "9" (
+        for %%t in (
+            "D:p"
+            "Ba:a" "Bb:b" "Bc:c"
+            "A:d"
+        ) do for /f "tokens=1-2 delims=:" %%a in (%%t) do (
+            if "!_segment:~0,1!" == "%%b" set "_type=%%a"
+        )
+        set "_number=!_segment:~1!"
+    )
+    if not defined _type (
+        set "_type=E"
+        set "_number=!_segment!"
+    )
+    if not defined _number set "_number=0"
+    set "_evaluated="
+    set /a "_evaluated=!_number!" || ( 1>&2 echo error: failed to evaluate number & exit /b 2 )
+    set /a "_number=!_evaluated!" || ( 1>&2 echo error: failed to evaluate number & exit /b 2 )
+    set "_number=000!_number!"
+    set "_number=!_number:~-3,3!"
+    if not "!_type!" == "E" set "_buffer="
+    set "_buffer=!_buffer!!_type!!_number!"
+    if not "!_type!,!_number!" == "E,000" (
+        set "_result=!_result!!_buffer!"
+        set "_buffer="
+    )
+)
+set "_result=F000!_result!C"
+if defined _local (
+    set "_local=!_local:~1!"
+    set "_is_number="
+    if defined _local (
+        set "_temp=_!_local!"
+        for %%c in (
+            a b c d e f g h i j k l m
+            n o p q r s t u v w x y z
+            0 1 2 3 4 5 6 7 8 9 .
+        ) do set "_temp=!_temp:%%c=!"
+        if not "!_temp!" == "_" ( 1>&2 echo error: invalid local version identifier & exit /b 2 )
+
+        set "_temp=_!_local!"
+        for /l %%n in (0,1,9) do set "_temp=!_temp:%%n=!"
+        if "!_temp!" == "_" set "_is_number=true"
+    )
+    if defined _is_number (
+        for %%p in (10) do (
+            for /l %%n in (1,1,%%p) do set "_local=0!_local!"
+            set "_local=!_local:~-%%p,%%p!"
+        )
+        set "_local=B!_local!"
+    ) else set "_local=A!_local!"
+    set "_result=!_result!+!_local!"
+)
+for /f "tokens=*" %%r in ("!_result!") do (
+    endlocal
+    set "%~1=%%r"
+)
+exit /b 0
+
+
+:Input.yesno [-m message] [-y value] [-n value] [-d default] [return_var]
+setlocal EnableDelayedExpansion EnableExtensions
+for %%v in (_return_var _message) do set "%%v="
+set "_yes_value=Y"
+set "_no_value=N"
+call :argparse ^
+    ^ "#1:store             :_return_var" ^
+    ^ "-m,--message:store   :_message" ^
+    ^ "-y,--yes:store       :_yes_value" ^
+    ^ "-n,--no:store        :_no_value" ^
+    ^ "-d,--default:store   :_default" ^
+    ^ -- %* || exit /b 2
+if not defined _message set "_message=Input !_return_var!? [y/n] "
+call :Input.yesno._loop || exit /b 4
+set "_result="
+if /i "!user_input:~0,1!" == "Y" set "_result=!_yes_value!"
+if /i "!user_input:~0,1!" == "N" set "_result=!_no_value!"
+set "_result=^!!_result!"
+set "_result=!_result:^=^^^^!"
+set "_result=%_result:!=^^^!%"
+for /f "delims= eol=" %%a in ("!_result!") do (
+    endlocal
+    if not "%_return_var%" == "" (
+        set "%_return_var%=%%a"
+        set "%_return_var%=!%_return_var%:~1!"
+    )
+    if /i "%user_input:~0,1%" == "Y" exit /b 0
+    if /i "%user_input:~0,1%" == "N" exit /b 5
+)
+exit /b 1
+#+++
+
+:Input.yesno._loop
+for /l %%# in (1,1,10) do for /l %%# in (1,1,10) do (
+    set "user_input="
+    set /p "user_input=!_message!"
+    if defined _default (
+        if not defined user_input set "user_input=!_default!"
+    )
+    if /i "!user_input:~0,1!" == "Y" exit /b 0
+    if /i "!user_input:~0,1!" == "N" exit /b 0
+)
+echo%0: Too many invalid inputs
+exit /b 1
+
+
+:argparse [-i] [-s] <spec> ... -- [arg] ...
+setlocal EnableDelayedExpansion
+set LF=^
+%=REQUIRED=%
+%=REQUIRED=%
+call :argparse._read_opts %* || exit /b 2
+call :argparse._read_spec %* || exit /b 2
+call :argparse._validate_specs || exit /b 2
+call :argparse._generate_instructions %* || exit /b 3
+call :argparse._exec_instructions || exit /b 3
+exit /b 0
+#+++
+
+:argparse._read_opts %* -> {_shifts}
+set "_._name=argparse"
+for %%v in (_ignore_unknown _stop_nonopt) do set "_.%%v="
+call :argparse._read_opts._parse ^
+    ^ "-n,--name:store                  :_._name" ^
+    ^ "-i,--ignore-unknown :store_const :_._ignore_unknown=true" ^
+    ^ "-s,--stop-nonopt:store_const     :_._stop_nonopt=true" ^
+    ^ -- %*
+set "_shifts=!_opt_shifts!"
+for %%v in (_name _ignore_unknown _stop_nonopt) do set "%%v=!_.%%v!"
+exit /b 0
+#+++
+
+:argparse._read_opts._parse %* -> {_shifts}
+set "_shifts=0"
+call :argparse._read_spec %*
+call :argparse._validate_specs || exit /b 2
+set "_self_shifts=!_shifts!"
+set "_ignore_unknown="
+set "_stop_nonopt=true"
+call :argparse._generate_instructions %* || exit /b 3
+set /a "_opt_shifts=!_shifts! - !_argc! - !_self_shifts!"
+call :argparse._exec_instructions || exit /b 3
+exit /b 0
+#+++
+
+:argparse._read_spec %* {_shifts*} -> {_specs}
+for /l %%n in (1,1,!_shifts!) do shift /1
+set "_specs="
+for /l %%# in (1,1,10) do for /l %%# in (1,1,10) do (
+    call set _value=%%1
+    if not defined _value (
+        1>&2 echo argparse: Missing -- seperator
+        exit /b 2
+    )
+    if "!_value!" == "--" (
+        set /a "_shifts+=1"
+        exit /b 0
+    )
+    call set _value=%%~1
+    for /f "tokens=1-2* delims=: " %%b in ("!_value!") do (
+        set "_specs=!_specs!%%b:%%c:%%d!LF!"
+    )
+    shift /1
+    set /a "_shifts+=1"
+)
+exit /b 1
+#+++
+
+:argparse._generate_instructions %* {_shifts*} {_specs} -> {_instructions} {_argc}
+for /l %%i in (1,1,!_shifts!) do shift /1
+set "_instructions="
+set "_argc=0"
+set "_stop_opt_parsing="
+for /l %%# in (1,1,20) do for /l %%# in (1,1,20) do (
+    call set _value=%%1
+    if not defined _value exit /b 0
+    set "_op="
+    set "_for_next_use="
+    set "_parse_opt="
+    if not defined _stop_opt_parsing if "!_value!" == "--" (
+        set "_stop_opt_parsing=true"
+        set "_op=pass"
+    )
+    if not defined _stop_opt_parsing (
+        if "!_value:~0,1!" == "-" set "_parse_opt=true"
+    )
+    if defined _parse_opt (
+        for /f "tokens=1-2* delims=:" %%b in ("!_specs!") do ( rem
+        ) & if not defined _op ( rem
+            for %%f in (%%b) do if "!_value!" == "%%f" set _op="%%c:%%d"
+            if defined _op (
+                for %%a in (store append) do if "%%c" == "%%a" (
+                    set "_for_next_use=true"
+                )
+            )
+        )
+        if not defined _ignore_unknown if not defined _op (
+            1>&2 echo !_name!: Unknown option '!_value!'
+            exit /b 3
+        )
+    )
+    if not defined _op (
+        if defined _stop_nonopt (
+            if not defined _stop_opt_parsing set "_stop_opt_parsing=true"
+        )
+        set /a "_argc+=1"
+        for /f "tokens=1* delims=:" %%a in ("!_specs!") do ( rem
+        ) & if not defined _op (
+            for %%t in (# #!_argc!) do (
+                if "%%a" == "%%t" set _op="%%b"
+            )
+        )
+    )
+    if defined _for_next_use (
+        set "_instructions=!_instructions! shift"
+        shift /1
+        set /a "_shifts+=1"
+        call set _value=%%1
+        if not defined _value (
+            1>&2 echo !_name!: Expected argument for last option
+            exit /b 2
+        )
+    )
+    set "_instructions=!_instructions! !_op! shift"
+    shift /1
+    set /a "_shifts+=1"
+)
+echo argparse: Too many arguments
+exit /b 1
+#+++
+
+:argparse._exec_instructions {_instructions}
+(
+    for /l %%i in (1,1,2) do goto 2> nul
+    for %%i in (%_instructions%) do ( rem
+    ) & for /f "tokens=1* delims=:" %%c in ("%%~i") do (
+        if /i "%%c" == "append" (
+            call set %%d=^!%%d^! %%1
+            set "%%d=!%%d:^^=^!"
+        )
+        if /i "%%c" == "store" (
+            call set "%%d=.%%~1"
+            set "%%d=!%%d:^^=^!"
+            set "%%d=!%%d:~1!"
+        )
+        if /i "%%c" == "append_const" (
+            for /f "tokens=1* delims==" %%v in ("%%d") do set "%%v=!%%v!%%w"
+        )
+        if /i "%%c" == "store_const" set "%%d"
+        if /i "%%c" == "shift" shift /1
+    )
+    ( call )
+)
+exit /b 2
+#+++
+
+:argparse._validate_specs {_specs}
+setlocal EnableDelayedExpansion
+set "_alphanum=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+if not defined _specs (
+    1>&2 echo argparse: No specs were provided
+    exit /b 2
+)
+set "_all_specs= "
+for /f "tokens=1-2* delims=:" %%b in ("!_specs!") do (
+    set "_spec=%%b"
+    if "!_spec:~0,1!" == "#" (
+        if not "!_all_specs: %%b = !" == "!_all_specs!" (
+            1>&2 echo argparse: Positional argument '%%b' already defined
+            exit /b 2
+        )
+        set "_pos=!_spec:~1!"
+        if defined _pos (
+            set "_invalid="
+            if !_pos! LSS 1 set "_invalid=true"
+            if !_pos! GTR 400 set "_invalid=true"
+            if defined _invalid (
+                1>&2 echo argparse: Invalid positional argument '%%b'
+                exit /b 2
+            )
+        )
+        set "_all_specs=!_all_specs!%%b "
+    ) else for %%o in (%%b) do (
+        if not "!_all_specs: %%o = !" == "!_all_specs!" (
+            1>&2 echo argparse: Flag '%%o' already defined
+            exit /b 2
+        )
+        set "_flag=%%o"
+        for /f "tokens=* delims=-" %%f in ("!_flag!") do set "_flag=%%f"
+        if "!_flag!" == "%%o" set "_flag="
+        if not defined _flag (
+            1>&2 echo argparse: Invalid flag '%%o'
+            exit /b 2
+        )
+        set "_all_specs=!_all_specs!%%o "
+    )
+    set "_invalid=true"
+    for %%a in (
+        store store_const append append_const
+    ) do if "%%c" == "%%a" set "_invalid="
+    if defined _invalid (
+        1>&2 echo argparse: Invalid action '%%c'
+        exit /b 2
+    )
+    set "_invalid="
+    for /f "tokens=1* delims==" %%v in ("%%d.") do (
+        if "%%v" == "." (
+            1>&2 echo argparse: Spec '%%b' have no destination variable
+            exit /b 2
+        )
+        set "_needs_value=?"
+        for %%a in (store append) do if "%%c" == "%%a" set "_needs_value="
+        for %%a in (store_const append_const) do if "%%c" == "%%a" set "_needs_value=true"
+        if defined _needs_value if "%%w" == "" (
+            1>&2 echo argparse: Spec '%%b' with action '%%c' requires a value to set
+            exit /b 2
+        )
+        if not defined _needs_value if not "%%w" == "" (
+            1>&2 echo argparse: Spec '%%b' with action '%%c' must not set any value
+            exit /b 2
+        )
+    )
+)
+exit /b 0
 
 
