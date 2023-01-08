@@ -8,11 +8,11 @@ rem ############################################################################
 
 :metadata [return_prefix]
 set "%~1name=sudoku"
-set "%~1version=3.2.4"
+set "%~1version=3.3a"
 set "%~1author=wthe22"
 set "%~1license=The MIT License"
 set "%~1description=Sudoku"
-set "%~1release_date=09/20/2021"   :: MM/DD/YYYY
+set "%~1release_date=01/09/2023"   :: MM/DD/YYYY
 set "%~1url=https://winscr.blogspot.com/2013/08/sudoku.html"
 set "%~1download_url=https://raw.githubusercontent.com/wthe22/batch-scripts/master/sudoku.bat"
 exit /b 0
@@ -64,6 +64,27 @@ echo FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 echo DEALINGS IN THE SOFTWARE.
 exit /b 0
 
+
+rem ############################################################################
+rem Documentation
+rem ############################################################################
+
+:doc.help
+echo usage:
+echo    sudoku
+echo        Run sudoku in interactive mode
+echo=
+echo    sudoku (-h^|--help)
+echo        Show this help
+echo=
+echo    sudoku -c :^<label^> [arguments] ...
+echo        Call the specified label with arguments
+echo=
+echo    sudoku solve ^<block_size^> ^<sudoku^>
+echo        Solve a sudoku
+exit /b 0
+
+
 rem ############################################################################
 rem Configurations
 rem ############################################################################
@@ -89,8 +110,8 @@ set "use_color=true"   [true, false]
 
 rem See "COLOR /?" for more info
 set   "default_color=07"    Default color for text
-set    "puzzle_color=0E"    Puzzle / Givens
-set  "solvings_color=07"    Solvings that user/solver entered
+set    "puzzle_color=07"    Puzzle / Givens
+set  "solvings_color=03"    Solvings that user/solver entered
 set "highlight_color=4E"    Highlighted cells in solver
 set "candidate_color=02"    Candidate for answer in solver
 set     "error_color=0C"    Error in solvings
@@ -110,14 +131,15 @@ rem Changelog
 rem ############################################################################
 
 :changelog
-::  Library Update and Small Improvements
-::  - Update structure and library to follow batchlib 3.0b3
-::  - Rename variables
-::  - EOL is now Windows so no EOL conversion is needed anymore
-::  - Update download url to point to new repo
-::  - Fix missing prompt message in solver after prompting to bruteforce, when
-::    solver is supposed to prompt for solution count.
-::  - Improve code of boxchar style
+::  A small release to add CLI functionality and slighty improve usage.
+::
+::  - Add subcommand to solve sudoku
+::  - Add CLI help message
+::  - Improve color scheme
+::  - Fix reload script not working
+::  - Fix console size being too small when solving 2x2 with steps
+::  - Fix solver fail to detect some case of invalid sudoku
+::  - Add more checking logic and hint when playing sudoku
 exit /b 0
 
 
@@ -142,14 +164,22 @@ rem ############################################################################
 :main
 @if ^"%1^" == "-c" @goto subcommand.call
 @if ^"%1^" == "--module" @goto subcommand.call.legacy
-@if ^"%1^" == "-h" @goto doc.help
-@if ^"%1^" == "--help" @goto doc.help
-@goto main_script
+@setlocal EnableDelayedExpansion EnableExtensions
+@echo off
+if ^"%1^" == "-h" goto doc.help
+if ^"%1^" == "--help" goto doc.help
+if ^"%1^" == "" (
+    call :main_script
+) else call :subcommand.%*
+@exit /b
+
+
+:main.reload
+endlocal
+goto main
 
 
 :main_script
-@setlocal EnableDelayedExpansion EnableExtensions
-@echo off
 call :metadata SOFTWARE.
 call :config
 
@@ -208,11 +238,6 @@ rd /s /q "!tmp_dir!" > nul 2> nul
 exit /b
 
 
-:main_script.reload
-endlocal
-goto scripts.main
-
-
 :subcommand.call -c <label> [arguments]
 @(
     setlocal DisableDelayedExpansion
@@ -242,6 +267,45 @@ goto scripts.main
     )
 )
 @exit /b
+
+
+:subcommand.solve <block_size> <sudoku>
+@setlocal EnableDelayedExpansion EnableExtensions
+@echo off
+call :metadata SOFTWARE.
+call :config
+
+if not exist "!tmp_dir!" md "!tmp_dir!"
+cd /d "!tmp_dir!" 2> nul || cd /d "!tmp!"
+
+for %%v in (block_size puzzle_string) do set "%%v="
+call :argparse ^
+    ^ "#1:store                 :block_size" ^
+    ^ "#2:store                 :puzzle_string" ^
+    ^ -- %* || exit /b 2
+set "SYMBOL=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+call :capchar BASE BACK DQ
+call :get_con_size con_width con_height
+call :clear_line_macro CL !con_width!
+call :Block_size.init_list 4 4
+call :Block_size.check !block_size! || (
+    1>&2 echo Invalid block size
+    exit /b 2
+)
+call :Block_size.setup !block_size!
+call :Array.check puzzle_string || (
+    exit /b 2
+)
+call :Matrix.create solvings puzzle_string 1
+set "start_time=!time!"
+call :Bruteforce solvings 1>&2
+set "end_time=!time!"
+call :difftime time_taken !end_time! !start_time!
+call :ftime time_taken !time_taken!
+echo !CL!Done in !time_taken! with !search_count! guesses 1>&2
+call :Matrix.to_array solvings answer_string
+echo !answer_string!
+exit /b 0
 
 
 rem ############################################################################
@@ -304,7 +368,7 @@ if "!user_input!" == "1" call :Settings.Style.menu
 if "!user_input!" == "2" call :Settings.toggle_color
 if /i "!user_input!" == "D" call :Settings.debug
 if /i "!user_input!" == "U" goto Settings.update_script
-if /i "!user_input!" == "R" goto main_script.reload
+if /i "!user_input!" == "R" goto main.reload
 goto Settings.menu
 
 
@@ -449,12 +513,21 @@ call :Matrix.unmark_duplicates applied.color "!Color_puzzle!"
 call :Color.set --revert --error !duplicate_list!
 call :Matrix.count empty_cells selected.solvings " "
 
-if "!duplicates_count!" == "0" (
+call :Solve selected.solvings 0 --once
+
+
+if /i "!is_valid!" == "true" (
     if "!empty_cells!" == "0" goto Play.solved
     echo !CL!Seems good, no duplicates found...
 ) else (
-    echo !CL!Oops^^! There is something wrong...
-    if /i not "!use_color!" == "true" echo TIPS: Use color GUI to show errors
+    if "!duplicates_count!" == "0" (
+        echo !CL!Oops^^! There are cells with no candidates...
+    ) else (
+        echo !CL!Oops^^! There are duplicates found...
+        if /i not "!use_color!" == "true" (
+            echo TIPS: Use color GUI to show errors
+        )
+    )
 )
 pause > nul
 goto Play.sudoku
@@ -474,9 +547,14 @@ if not "!duplicates_count!" == "0" (
 call :Matrix.copy selected.solvings _temp
 call :Solve _temp --once
 call :Matrix.delete _temp
-if "!solve_method!" == "Unsolvable" (
-    echo !CL!No hint available. Sudoku is too hard for solver
-) else echo !CL!Try looking for !solve_method!
+call :Color.set --highlight !error_cells!
+if /i "!is_valid!" == "true" (
+    if "!solve_method!" == "Unsolvable" (
+        echo !CL!No hint available. Sudoku is too hard for solver
+    ) else echo !CL!Try looking for !solve_method!
+) else (
+    echo !CL!There are cells with no candidates
+)
 pause > nul
 goto :EOF
 
@@ -1467,6 +1545,7 @@ if not "%~2" == "" set "usedMethods=%~2"
 call :setup_candidates %1 candidate_list
 call :Matrix.count empty_cells %1 " "
 set "solved_cells="
+set "error_cells="
 set "is_valid=true"
 
 :Solve.loop
@@ -1479,12 +1558,16 @@ for %%s in (!solved_cells!) do for /f "tokens=1,2 delims=+" %%c in ("%%s") do (
     for %%a in (!Cells_adj%%c!) do set "candidate_list_%%a=!candidate_list_%%a:%%d= !"
     set /a "empty_cells-=1"
 )
-for %%c in (!Cells_all!) do if "!candidate_list_%%c!" == "!candidate_mark_empty!" set "is_valid=false"
+for %%c in (!Cells_all!) do if "!candidate_list_%%c!" == "!candidate_mark_empty!" (
+    set "error_cells=!error_cells! %%c"
+)
+if defined error_cells set "is_valid=false"
+if /i "!is_valid!" == "false" goto Solve.error
 set "solved_cells=!solved_cells:~1!"
 if defined solved_cells if defined _solve_once goto Solve.done
 set "solved_cells="
-if /i "!is_valid!" == "false" goto Solve.error
 if "!empty_cells!" == "0" goto Solve.done
+if !usedMethods! LEQ 0 goto Solve.too_hard
 
 rem Solving algorithms starts here
 
@@ -1545,6 +1628,7 @@ if !usedMethods! LEQ 3 goto Solve.too_hard
 rem No Algorithm Left
 :Solve.too_hard
 set "solve_method=Unsolvable"
+:Solve.error
 :Solve.done
 goto :EOF
 
@@ -2043,7 +2127,8 @@ for %%s in (!symbol_spaced!) do (
     set "candidate_mark_%%s=!_spaces!%%s"
     set "_spaces=!_spaces! "
 )
-for %%s in (empty !symbol_spaced!) do (
+set "candidate_mark_empty=!_spaces!"
+for %%s in (!symbol_spaced!) do (
     set "candidate_mark_%%s=!candidate_mark_%%s!!_spaces!"
     set "candidate_mark_%%s=!candidate_mark_%%s:~0,%grid_size%!"
 )
@@ -2153,7 +2238,7 @@ if !GUI_hSpacing! LSS 0 set "GUI_hSpacing=0"
 set /a "Side_text.height= !GUI_vSpacing! * 2 + !GUI_height!"
 
 set /a "showStep_width= !GUI_width! + !total_cells! - 3 * !grid_size! + 2"
-set /a "showStep_height= 2 * !GUI_height! - !grid_size! + !block_width! + 3"
+set /a "showStep_height=!con_height! + !grid_size! + !block_width!"
 if !showStep_width! LSS !con_width! set "showStep_width=!con_width!"
 if !showStep_height! LSS !con_height! set "showStep_height=!con_height!"
 call :Display.change_size !con_width! !con_height!
